@@ -1,11 +1,10 @@
 // src/routes/PrivateRoute.tsx
 import { Navigate, Outlet } from 'react-router-dom';
-import { useGetMeQuery } from '../api/Queries/AuthQueries';
+import { useGetMeQuery } from '../api/Queries/authQueries';
 import { Skeleton } from '@/components/ui/skeleton'; // For loading state
 
 const PrivateRoute = () => {
   const { data: user, isLoading, isError } = useGetMeQuery();
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

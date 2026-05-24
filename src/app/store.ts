@@ -1,16 +1,18 @@
 // src/app/store.ts
 import { configureStore } from '@reduxjs/toolkit';
-import authSlice from '../features/Auth/AuthSlice';
+// import authSlice from '../features/Auth/AuthSlice';
 // Import other slices as you create them
 // import menuSlice from '@/features/menu/menuSlice';
 // import ordersSlice from '@/features/orders/ordersSlice';
-
+import layoutSlice from '../components/Layout/layoutSlice';
+import orderSlice from '../features/Order/store/orderSlice';
 export const store = configureStore({
   reducer: {
-    auth: authSlice,
+    // auth: authSlice,
     // menu: menuSlice,
-    // orders: ordersSlice,
+    orders: orderSlice,
     // ... other feature slices
+    ui: layoutSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
