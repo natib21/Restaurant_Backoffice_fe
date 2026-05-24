@@ -40,6 +40,7 @@ export interface User {
   email: string;
   emailConfirmed: boolean;
   phone: string;
+  avatar?: string;
   role: {
     _id: string;
     name: string;
@@ -54,22 +55,32 @@ export interface User {
     id: string;
   };
   isActive: boolean;
-  branch: {
+  merchant: {
     _id: string;
-    name: string;
-    location?: {
-      type: 'Point';
-      coordinates: [number, number];
-      city: string;
-      formattedAddress: string;
-    };
-    merchant?: string;
-    isMain: boolean;
-    publicUrl?: string;
-    branchCode?: string;
-    shortCode?: string;
-    id: string;
+    businessName: boolean;
+    mode: string;
+    publicWebsite: string;
+    status: string;
   };
+  branch: [
+    {
+      _id: string;
+      name: string;
+      location?: {
+        type: 'Point';
+        coordinates: [number, number];
+        city: string;
+        formattedAddress: string;
+      };
+      merchant?: string;
+      isMain: boolean;
+      publicUrl?: string;
+      branchCode?: string;
+      shortCode?: string;
+      isActive: boolean;
+      id: string;
+    },
+  ];
   createdAt: string;
   history?: any[];
   __v?: number;
@@ -114,27 +125,59 @@ const verifyEmailApi = async (token: string) => {
 };
 
 const getMeApi = async (): Promise<User> => {
-  const response = await api.get('/auth/me');
-  return response.data.data?.user || response.data.user;
+  const response = await api.get('/v1/user/getMe');
+  return response.data.data?.user ?? response.data.user ?? null;
 };
 
-// === React Query Hooks ===
+// src/api/queries/authQueries.ts
 export const useLoginMutation = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   return useMutation({
     mutationFn: loginApi,
     onSuccess: (data: AuthResponse) => {
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        if (data.data?.user) {
-          queryClient.setQueryData(['user'], data.data.user);
-        }
+      // No token in response body anymore! Cookie is set automatically
+      // Backend now returns: { status: 'success', data: { user } }
+
+      if (data.data?.user) {
+        // Cache the user immediately
+        queryClient.setQueryData(['user'], data.data.user);
+
+        // Navigate to dashboard (or intended page)
+        navigate('/dashboard', { replace: true });
       }
+    },
+    onError: (error: any) => {
+      console.error('Login failed:', error);
+      // Optional: toast.error(error.response?.data?.message || 'Login failed');
     },
   });
 };
 
+export const useLogoutMutation = () => {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  return useMutation({
+    mutationFn: () => api.post('/v1/user/logout'),
+    onSuccess: () => {
+      // Clear all cached data
+      queryClient.clear();
+      queryClient.setQueryData(['user'], null);
+
+      // Redirect to login
+      navigate('/login', { replace: true });
+    },
+    onError: (error) => {
+      console.error('Logout failed:', error);
+      // Still force logout client-side
+      queryClient.clear();
+      queryClient.setQueryData(['user'], null);
+      navigate('/login', { replace: true });
+    },
+  });
+};
 export const useRegisterMutation = () => {
   return useMutation({
     mutationFn: registerApi,
@@ -162,7 +205,6 @@ export const useResetPasswordMutation = () => {
     mutationFn: resetPasswordApi,
     onSuccess: (data) => {
       if (data.token && data.data?.user) {
-        localStorage.setItem('token', data.token);
         queryClient.setQueryData(['user'], data.data.user);
         navigate('/dashboard', { replace: true });
       }
@@ -177,8 +219,7 @@ export const useVerifyEmailMutation = () => {
   return useMutation({
     mutationFn: ({ token }: { token: string }) => verifyEmailApi(token),
     onSuccess: (data: AuthResponse) => {
-      if (data.token && data.data?.user) {
-        localStorage.setItem('token', data.token);
+      if (data.data?.user) {
         queryClient.setQueryData(['user'], data.data.user);
         navigate('/dashboard', { replace: true });
       }
@@ -190,21 +231,9 @@ export const useGetMeQuery = () => {
   return useQuery({
     queryKey: ['user'],
     queryFn: getMeApi,
-    enabled: !!localStorage.getItem('token'),
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 10, // 10 minutes
     retry: 1,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
-};
-
-export const useLogout = () => {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  return () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    queryClient.clear();
-    queryClient.setQueryData(['user'], null);
-    navigate('/login', { replace: true });
-  };
 };

@@ -1,4 +1,5 @@
 /** @type {import('tailwindcss').Config} */
+const { fontFamily } = require('tailwindcss/defaultTheme');
 module.exports = {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
@@ -8,6 +9,16 @@ module.exports = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      fontFamily: {
+        // This creates the `font-poppins` utility class
+        poppins: ['Poppins', 'sans-serif'],
+
+        // Optional: also set sans to Poppins globally
+        sans: ['Poppins', ...fontFamily.sans],
+
+        // For Merienda (handwriting font)
+        merienda: ['Merienda', 'cursive'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -32,6 +43,7 @@ module.exports = {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
         },
+
         accent: {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
