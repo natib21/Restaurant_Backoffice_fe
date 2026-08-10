@@ -34,8 +34,11 @@ import {
   Printer,
   Tag,
   Ticket,
+<<<<<<< HEAD
   Carrot,
   ChefHat,
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 } from 'lucide-react';
 
 interface NavItem {
@@ -121,7 +124,11 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
       subItems: [
         {
           label: 'Customer List',
+<<<<<<< HEAD
           to: '/customers/list',
+=======
+          to: '/customers',
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           icon: <Users className="h-4 w-4" />,
         },
         {
@@ -136,12 +143,20 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
         },
         {
           label: 'Loyalty Members',
+<<<<<<< HEAD
           to: '/customers',
+=======
+          to: '/customers/loyalty',
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           icon: <Gift className="h-4 w-4" />,
         },
         {
           label: 'Marketing',
+<<<<<<< HEAD
           to: '/marketing/campaigns',
+=======
+          to: '/customers/marketing',
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           icon: <Megaphone className="h-4 w-4" />,
         },
       ],
@@ -210,21 +225,27 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
           icon: <Boxes className="h-4 w-4" />,
         },
         {
+<<<<<<< HEAD
           label: 'Ingredients',
           to: '/inventory/ingredients',
           icon: <Carrot className="h-4 w-4" />,
         },
         {
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           label: 'Suppliers',
           to: '/inventory/suppliers',
           icon: <Factory className="h-4 w-4" />,
         },
         {
+<<<<<<< HEAD
           label: 'Recipes',
           to: '/inventory/recipes',
           icon: <ChefHat className="h-4 w-4" />,
         },
         {
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           label: 'Purchase Orders',
           to: '/inventory/purchase',
           icon: <ShoppingBag className="h-4 w-4" />,

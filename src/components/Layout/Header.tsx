@@ -65,7 +65,10 @@ const Header: React.FC = () => {
     (state: RootState) => state.ui
   );
   const socket = useSocket();
+<<<<<<< HEAD
   console.log(socket ? 'Socket is available in Header' : 'No socket in Header');  
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   const [isConnected, setIsConnected] = useState(false);
   const { data: user } = useGetMeQuery();
   const { data: branches = [], isLoading: branchesLoading } =

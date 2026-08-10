@@ -2,8 +2,13 @@
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setOrders, selectOrder } from '../store/orderSlice';
+<<<<<<< HEAD
 // import { useOrdersQuery } from '../../../api/Queries/orderQuery';
 import {OrderSidebar} from '../Components/OrderSidebar';
+=======
+import { useOrdersQuery } from '../../../api/Queries/orderQuery';
+import OrderSidebar from '../Components/OrderSidebar';
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 import type { RootState } from '@/app/store';
 import OrderHeader from '../Components/OrderHeader';
 import OrderTimeline from '../Components/OrderTimeline';

@@ -61,7 +61,10 @@ import { useState, useMemo } from 'react';
 const MenuItemsPage = () => {
   const navigate = useNavigate();
   const { data: menuItems = [], isLoading, isError } = useMenuItemsQuery();
+<<<<<<< HEAD
   console.log(menuItems)
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   const deleteMutation = useDeleteMenuItemMutation();
   const toggleAvailabilityMutation = useToggleMenuItemAvailabilityMutation();
 

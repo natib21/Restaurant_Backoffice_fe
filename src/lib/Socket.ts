@@ -9,8 +9,13 @@ import React, {
 import { io, type Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { type User } from '@/api/Queries/authQueries';
+<<<<<<< HEAD
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:8000';
 
+=======
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:7000';
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
 interface SessionPayload {
   branchId: string;
@@ -68,7 +73,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
   );
 
   useEffect(() => {
+<<<<<<< HEAD
     
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     if (!user || !currentBranchId) {
       if (socketRef.current?.connected) {
         socketRef.current.disconnect();
@@ -81,6 +89,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
     let createdSocket = false;
 
     if (!socketRef.current) {
+<<<<<<< HEAD
       // const token = Cookies.get('jwt');
 
   
@@ -88,6 +97,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         transports: ['websocket'],
         withCredentials: true,
          
+=======
+      const newSocket = io(SOCKET_URL, {
+        transports: ['websocket'],
+        withCredentials: true,
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
@@ -108,13 +122,19 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
       };
 
       const onConnect = () => {
+<<<<<<< HEAD
           console.log('SOCKET CONNECTED');
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
         toast.success('Connected to real-time updates');
         setupSession();
       };
 
       const onDisconnect = (reason: string) => {
+<<<<<<< HEAD
         console.log('SOCKET DISCONNECTED:', reason);
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
         if (reason === 'io server disconnect') {
           toast.error('Disconnected from server');
         } else {
@@ -130,15 +150,21 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         console.error('Socket error:', err);
         toast.error('Real-time error: ' + (err.message || 'Unknown'));
       };
+<<<<<<< HEAD
         const onConnectError = (err: any) => {
         console.error('CONNECT ERROR:', err.message);
       };
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
       newSocket.on('connect', onConnect);
       newSocket.on('disconnect', onDisconnect);
       newSocket.on('reconnect_failed', onReconnectFailed);
       newSocket.on('error', onError);
+<<<<<<< HEAD
       newSocket.on('connect_error', onConnectError);
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     }
 
     if (socketRef.current?.connected) {
@@ -148,10 +174,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         permissions,
       } as SessionPayload);
     }
+<<<<<<< HEAD
    
 
 
     
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
     return () => {
       if (createdSocket && socketRef.current) {

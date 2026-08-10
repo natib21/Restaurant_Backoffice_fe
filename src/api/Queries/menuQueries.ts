@@ -111,19 +111,31 @@ const menuKeys = {
 };
 
 const menuGroupKeys = {
+<<<<<<< HEAD
   all: ['menu-group'] as const,
+=======
+  all: ['menuGroups'] as const,
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   lists: () => [...menuGroupKeys.all, 'list'] as const,
   list: () => [...menuGroupKeys.lists()] as const,
   details: () => [...menuGroupKeys.all, 'detail'] as const,
   detail: (id: string) => [...menuGroupKeys.details(), id] as const,
+<<<<<<< HEAD
   light: () => [...menuGroupKeys.all, 'light'] as const,
+=======
+  light: ['menuGroups', 'light'] as const,
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 /* ======================================================
    API Calls - Menu Items
 ====================================================== */
 const fetchStaffMenu = async (): Promise<StaffMenuResponse> => {
+<<<<<<< HEAD
   const { data } = await api.get('/v1/menu/staff');
+=======
+  const { data } = await api.get('/v1/menu/staff-menu');
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data; // data.data contains { restaurant, totalItems, menu }
 };
 
@@ -164,19 +176,31 @@ const deleteMenuItem = async (id: string): Promise<void> => {
 /* ---------- API Calls - Menu Groups (Correct Endpoints) ---------- */
 
 const fetchMenuGroups = async (): Promise<MenuGroup[]> => {
+<<<<<<< HEAD
   const { data } = await api.get('/v1/menu-group');
+=======
+  const { data } = await api.get('/v1/menuGroup');
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.menuGroups;
 };
 
 const fetchMenuGroup = async (id: string): Promise<MenuGroup> => {
+<<<<<<< HEAD
   const { data } = await api.get(`/v1/menu-group/${id}`);
+=======
+  const { data } = await api.get(`/v1/menuGroup/${id}`);
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.menuGroup;
 };
 
 const createMenuGroup = async (
   groupData: Partial<MenuGroup>
 ): Promise<MenuGroup> => {
+<<<<<<< HEAD
   const { data } = await api.post('/v1/menu-group', groupData);
+=======
+  const { data } = await api.post('/v1/menuGroup', groupData);
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.menuGroup;
 };
 
@@ -187,12 +211,20 @@ const updateMenuGroup = async ({
   id: string;
   groupData: Partial<MenuGroup>;
 }): Promise<MenuGroup> => {
+<<<<<<< HEAD
   const { data } = await api.patch(`/v1/menu-group/${id}`, groupData);
+=======
+  const { data } = await api.patch(`/v1/menuGroup/${id}`, groupData);
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.menuGroup;
 };
 
 const deleteMenuGroup = async (id: string): Promise<void> => {
+<<<<<<< HEAD
   await api.delete(`/v1/menu-group/${id}`);
+=======
+  await api.delete(`/v1/menuGroup/${id}`);
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 /* ======================================================
@@ -285,8 +317,12 @@ export const useToggleMenuItemAvailabilityMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+<<<<<<< HEAD
     mutationFn: (id: string) =>
       api.patch(`/v1/menu/${id}/toggle-availability`),
+=======
+    mutationFn: (id: string) => api.patch(`v1/menu/${id}/toggle-availability`),
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: menuKeys.list() });
       queryClient.invalidateQueries({ queryKey: menuKeys.details() });

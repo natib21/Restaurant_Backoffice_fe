@@ -8,6 +8,7 @@ import MainLayout from '@/components/Layout/MainLayout';
 import StaffManagementPage from '../features/User/Pages/StaffManagementPage';
 import RolesPermissionsPage from '../features/User/Pages/RolesPermissionsPage';
 import AttendancePage from '../features/User/Pages/AttendancePage';
+<<<<<<< HEAD
 
 import Overview from '@/features/Overview/Pages/Overview';
 
@@ -47,7 +48,30 @@ import SuppliersPage from '@/features/Inventory/pages/SuppliersPage';
 import RecipesPage from '@/features/Inventory/pages/RecipesPage';
 import PurchaseOrdersPage from '@/features/Inventory/pages/PurchaseOrdersPage';
 import WasteTrackingPage from '@/features/Inventory/pages/WasteTrackingPage';
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
+import Overview from '@/features/Overview/Pages/Overview';
+
+import MenuItemsPage from '@/features/Menu/pages/MenuItemsPage';
+import MenuGroupsPage from '@/features/Menu/pages/MenuGroupsPage';
+import SpecialOffersPage from '@/features/Menu/pages/MenuSpecialsPage';
+
+import TableManagementPage from '@/features/Table/pages/TableManagementPage';
+import BranchManagementPage from '@/features/Branch/pages/BranchManagementPage';
+
+import OrdersLayout from '@/features/Order/Components/OrdersLayout'; // New layout wrapper
+import ActiveOrdersPage from '@/features/Order/pages/ActiveOrdersPage';
+import OrderHistoryPage from '@/features/Order/pages/OrderHistoryPage';
+import DeliveryManagementPage from '@/features/Order/pages/DeliveryManagementPage';
+import OrderDetailsPage from '@/features/Order/pages/OrderDetailsPage'; // Optional: for /orders/:id
+import TakeawayManagementPage from '@/features/Order/pages/TakeawayManagementPage';
+import DineInManagementPage from '@/features/Order/pages/DineInManagementPage';
+import StaffDetailPage from '@/features/User/Pages/StaffDetailPage';
+import SettingsPage from '@/features/Setting/pages/SettingsPage';
+import SubscriptionPlanPage from '@/features/Subscription/pages/SubscriptionPlanPage';
+import BillingHistoryPage from '@/features/Subscription/pages/BillingHistoryPage';
+import { PaymentCancel, PaymentError, PaymentSuccess } from '@/features/Subscription/pages/PaymentStatus';
 const AppRoutes = () => {
   return (
     <Routes>
@@ -63,6 +87,7 @@ const AppRoutes = () => {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Overview />} />
+<<<<<<< HEAD
           
           {/* Customer Routes */}
           <Route path="/customers">
@@ -80,6 +105,8 @@ const AppRoutes = () => {
             <Route path="campaigns" element={<CampaignPage />} />
           </Route>
           
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           <Route path="/menu">
             <Route index element={<MenuItemsPage />} />
             <Route path="items" element={<MenuItemsPage />} />
@@ -90,6 +117,7 @@ const AppRoutes = () => {
             <Route index element={<TableManagementPage />} />
             <Route path="management" element={<TableManagementPage />} />
           </Route>
+<<<<<<< HEAD
 
           {/* Inventory Routes */}
           <Route path="/inventory">
@@ -101,6 +129,8 @@ const AppRoutes = () => {
             <Route path="purchase" element={<PurchaseOrdersPage />} />
             <Route path="waste" element={<WasteTrackingPage />} />
           </Route>
+=======
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
           <Route path="/branches">
             <Route index element={<BranchManagementPage />} />
             <Route path="management" element={<BranchManagementPage />} />

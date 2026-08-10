@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // src/features/Overview/Pages/Overview.tsx
 import { useSelector } from 'react-redux';
 import { type RootState } from '@/app/store';
@@ -194,4 +195,9 @@ const Overview = () => {
   );
 };
 
+=======
+const Overview = () => {
+  return <div>Overview</div>;
+};
+>>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 export default Overview;
