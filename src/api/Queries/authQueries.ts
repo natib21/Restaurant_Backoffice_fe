@@ -131,11 +131,7 @@ const verifyEmailApi = async (token: string) => {
 };
 
 const getMeApi = async (): Promise<User> => {
-<<<<<<< HEAD
   const response = await api.get('/v1/users/me');
-=======
-  const response = await api.get('/v1/user/getMe');
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return response.data.data?.user ?? response.data.user ?? null;
 };
 
@@ -170,11 +166,7 @@ export const useLogoutMutation = () => {
   const navigate = useNavigate();
 
   return useMutation({
-<<<<<<< HEAD
     mutationFn: () => api.post('/v1/auth/logout'),
-=======
-    mutationFn: () => api.post('/v1/user/logout'),
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     onSuccess: () => {
       // Clear all cached data
       queryClient.clear();
@@ -217,13 +209,8 @@ export const useResetPasswordMutation = () => {
 
   return useMutation({
     mutationFn: resetPasswordApi,
-<<<<<<< HEAD
     onSuccess: (data: AuthResponse) => {
       if (data.data?.user) {
-=======
-    onSuccess: (data) => {
-      if (data.token && data.data?.user) {
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
         queryClient.setQueryData(['user'], data.data.user);
         navigate('/dashboard', { replace: true });
       }
