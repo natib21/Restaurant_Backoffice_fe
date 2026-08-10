@@ -123,7 +123,7 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
   // Sync API data
   useEffect(() => {
     setOrders(ordersFromApi);
-  }, [ordersFromApi]);
+  }, []);
 
   /* ---------------------------------- Socket Logic --------------------------------- */
   useEffect(() => {

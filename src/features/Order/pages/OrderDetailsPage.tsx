@@ -155,7 +155,7 @@ const OrderDetailsPage = () => {
       </div>
     );
   }
-
+console.log("orderId from params:", orderId);
   const currentStatus = order.status as OrderStatus;
 
   const isPaid = order.paymentStatus === 'paid';

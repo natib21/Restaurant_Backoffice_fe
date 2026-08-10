@@ -110,7 +110,7 @@ export interface MerchantRole {
 ====================================================== */
 
 const merchantKeys = {
-  all: ['merchants'] as const,
+  all: ['merchant'] as const,
   list: () => [...merchantKeys.all, 'list'] as const,
   detail: (id: string) => [...merchantKeys.all, 'detail', id] as const,
   profile: () => [...merchantKeys.all, 'profile'] as const,
@@ -136,17 +136,17 @@ const roleKeys = {
 ====================================================== */
 
 const fetchAllMerchants = async (): Promise<Merchant[]> => {
-  const { data } = await api.get('/v1/merchants');
+  const { data } = await api.get('/v1/merchant');
   return data.data.merchants;
 };
 
 const fetchMerchant = async (id: string): Promise<Merchant> => {
-  const { data } = await api.get(`/v1/merchants/${id}`);
+  const { data } = await api.get(`/v1/merchant/${id}`);
   return data.data.merchant;
 };
 
 const fetchMerchantStats = async (id: string): Promise<any> => {
-  const { data } = await api.get(`/v1/merchants/${id}/stats`);
+  const { data } = await api.get(`/v1/merchant/${id}/stats`);
   return data.data.stats;
 };
 
@@ -156,28 +156,28 @@ const fetchMerchantStats = async (id: string): Promise<any> => {
 
 const fetchMyMerchant = async (): Promise<Merchant> => {
   // Many apps expose /me — adjust if your backend uses different path
-  const { data } = await api.get('/v1/merchants/me');
+  const { data } = await api.get('/v1/merchant/me');
   return data.data.merchant;
 };
 
 const updateMe = async (payload: FormData): Promise<Merchant> => {
-  const { data } = await api.patch('/v1/merchants/me', payload);
+  const { data } = await api.patch('/v1/merchant/me', payload);
 
   return data.data.merchant;
 };
 
 const fetchMerchantStaff = async (): Promise<StaffUser[]> => {
-  const { data } = await api.get('/v1/merchants/users');
+  const { data } = await api.get('/v1/merchant/users');
   return data.data.users;
 };
 
 const fetchMerchantStaffMember = async (id: string): Promise<StaffUser> => {
-  const { data } = await api.get(`/v1/merchants/users/${id}`);
+  const { data } = await api.get(`/v1/merchant/users/${id}`);
   return data.data.user;
 };
 
 const createStaffMember = async (payload: any): Promise<StaffUser> => {
-  const { data } = await api.post('/v1/merchants/users', payload);
+  const { data } = await api.post('/v1/merchant/users', payload);
   return data.data.user;
 };
 
@@ -185,16 +185,16 @@ const updateStaffMember = async ({
   id,
   ...payload
 }: { id: string } & Partial<StaffUser>): Promise<StaffUser> => {
-  const { data } = await api.patch(`/v1/merchants/users/${id}`, payload);
+  const { data } = await api.patch(`/v1/merchant/users/${id}`, payload);
   return data.data.user;
 };
 
 const deactivateStaffMember = async (id: string): Promise<void> => {
-  await api.delete(`/v1/merchants/users/${id}`);
+  await api.delete(`/v1/merchant/users/${id}`);
 };
 
 const activateStaffMember = async (id: string): Promise<StaffUser> => {
-  const { data } = await api.patch(`/v1/merchants/users/${id}/activate`);
+  const { data } = await api.patch(`/v1/merchant/users/${id}/activate`);
   return data.data.user;
 };
 // API Calls - Staff / Users (merchant-self scope)
@@ -205,7 +205,7 @@ const fetchMerchantStaffByBranch = async (
   branch: { _id: string; name: string };
   users: StaffUser[];
 }> => {
-  const { data } = await api.get(`/v1/merchants/users/branch/${branchId}`);
+  const { data } = await api.get(`/v1/merchant/users/branch/${branchId}`);
   return data.data;
 };
 /* ======================================================
@@ -213,12 +213,12 @@ const fetchMerchantStaffByBranch = async (
 ====================================================== */
 
 const fetchMerchantRoles = async (): Promise<MerchantRole[]> => {
-  const { data } = await api.get('/v1/merchants/roles');
+  const { data } = await api.get('/v1/merchant/roles');
   return data.data.roles;
 };
 
 const fetchMerchantRole = async (id: string): Promise<MerchantRole> => {
-  const { data } = await api.get(`/v1/merchants/roles/${id}`);
+  const { data } = await api.get(`/v1/merchant/roles/${id}`);
   return data.data.role;
 };
 
@@ -227,7 +227,7 @@ const createMerchantRole = async (payload: {
   description: string;
   tasks: string[];
 }): Promise<MerchantRole> => {
-  const { data } = await api.post('/v1/merchants/roles', payload);
+  const { data } = await api.post('/v1/merchant/roles', payload);
   return data.data.role;
 };
 
@@ -235,16 +235,16 @@ const updateMerchantRole = async ({
   id,
   ...payload
 }: { id: string } & Partial<MerchantRole>): Promise<MerchantRole> => {
-  const { data } = await api.patch(`/v1/merchants/roles/${id}`, payload);
+  const { data } = await api.patch(`/v1/merchant/roles/${id}`, payload);
   return data.data.role;
 };
 
 const deactivateMerchantRole = async (id: string): Promise<void> => {
-  await api.delete(`/v1/merchants/roles/${id}`);
+  await api.delete(`/v1/merchant/roles/${id}`);
 };
 
 const activateMerchantRole = async (id: string): Promise<MerchantRole> => {
-  const { data } = await api.patch(`/v1/merchants/roles/${id}/activate`);
+  const { data } = await api.patch(`/v1/merchant/roles/${id}/activate`);
   return data.data.role;
 };
 

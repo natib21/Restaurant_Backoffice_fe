@@ -103,13 +103,17 @@ const RoleForm: React.FC<RoleFormProps> = ({
       const name = task.name.toLowerCase();
 
       if (
+        endpoint.includes('/merchant/users') ||
         endpoint.includes('/merchants/users') ||
+        endpoint.includes('/merchant/roles') ||
         endpoint.includes('/merchants/roles')
       ) {
         groups['Staff & Access'].push(task);
       } else if (
         endpoint.includes('/menu') ||
+        endpoint.includes('/menu-group') ||
         endpoint.includes('/menuGroup') ||
+        endpoint.includes('/combo') ||
         endpoint.includes('/menuCombo') ||
         endpoint.includes('/branchGroup')
       ) {

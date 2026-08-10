@@ -25,11 +25,29 @@ import DeliveryManagementPage from '@/features/Order/pages/DeliveryManagementPag
 import OrderDetailsPage from '@/features/Order/pages/OrderDetailsPage'; // Optional: for /orders/:id
 import TakeawayManagementPage from '@/features/Order/pages/TakeawayManagementPage';
 import DineInManagementPage from '@/features/Order/pages/DineInManagementPage';
-import StaffDetailPage from '@/features/User/Pages/StaffDetailPage';
+import StaffDetailPage from '../features/User/Pages/StaffDetailPage';
 import SettingsPage from '@/features/Setting/pages/SettingsPage';
 import SubscriptionPlanPage from '@/features/Subscription/pages/SubscriptionPlanPage';
 import BillingHistoryPage from '@/features/Subscription/pages/BillingHistoryPage';
 import { PaymentCancel, PaymentError, PaymentSuccess } from '@/features/Subscription/pages/PaymentStatus';
+
+// Customer Pages
+import CustomerListPage from '@/features/Customer/pages/CustomerListPage';
+import CustomerDetailPage from '@/features/Customer/pages/CustomerDetailPage';
+import CustomerGroupsPage from '@/features/Customer/pages/CustomerGroupsPage';
+import CustomerFeedbackPage from '@/features/Customer/pages/CustomerFeedbackPage';
+
+// Marketing Pages
+import CampaignPage from '@/features/Marketing/pages/CampaignPage';
+
+// Inventory Pages
+import StockOverviewPage from '@/features/Inventory/pages/StockOverviewPage';
+import IngredientsPage from '@/features/Inventory/pages/IngredientsPage';
+import SuppliersPage from '@/features/Inventory/pages/SuppliersPage';
+import RecipesPage from '@/features/Inventory/pages/RecipesPage';
+import PurchaseOrdersPage from '@/features/Inventory/pages/PurchaseOrdersPage';
+import WasteTrackingPage from '@/features/Inventory/pages/WasteTrackingPage';
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -45,6 +63,23 @@ const AppRoutes = () => {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Overview />} />
+          
+          {/* Customer Routes */}
+          <Route path="/customers">
+            <Route index element={<Navigate to="/customers/list" replace />} />
+            <Route path="list" element={<CustomerListPage />} />
+            <Route path="groups" element={<CustomerGroupsPage />} />
+            <Route path="feedback" element={<CustomerFeedbackPage />} />
+            {/* Dynamic :id route must be last to avoid catching static routes */}
+            <Route path=":id" element={<CustomerDetailPage />} />
+          </Route>
+          
+          {/* Marketing Routes */}
+          <Route path="/marketing">
+            <Route index element={<Navigate to="/marketing/campaigns" replace />} />
+            <Route path="campaigns" element={<CampaignPage />} />
+          </Route>
+          
           <Route path="/menu">
             <Route index element={<MenuItemsPage />} />
             <Route path="items" element={<MenuItemsPage />} />
@@ -54,6 +89,17 @@ const AppRoutes = () => {
           <Route path="/tables">
             <Route index element={<TableManagementPage />} />
             <Route path="management" element={<TableManagementPage />} />
+          </Route>
+
+          {/* Inventory Routes */}
+          <Route path="/inventory">
+            <Route index element={<Navigate to="/inventory/stock" replace />} />
+            <Route path="stock" element={<StockOverviewPage />} />
+            <Route path="ingredients" element={<IngredientsPage />} />
+            <Route path="suppliers" element={<SuppliersPage />} />
+            <Route path="recipes" element={<RecipesPage />} />
+            <Route path="purchase" element={<PurchaseOrdersPage />} />
+            <Route path="waste" element={<WasteTrackingPage />} />
           </Route>
           <Route path="/branches">
             <Route index element={<BranchManagementPage />} />

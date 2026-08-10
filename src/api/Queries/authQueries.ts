@@ -98,24 +98,30 @@ export interface AuthResponse {
 const loginApi = async (
   credentials: LoginCredentials
 ): Promise<AuthResponse> => {
-  const response = await api.post('/v1/user/login', credentials);
+  const response = await api.post('/v1/auth/login', credentials);
   return response.data;
 };
 
 const registerApi = async (
   credentials: RegisterCredentials
 ): Promise<AuthResponse> => {
-  const response = await api.post('/v1/user/signup', credentials);
+  const response = await api.post('/v1/auth/signup', credentials);
   return response.data;
 };
 
 const forgotPasswordApi = async (credentials: ForgotPasswordCredentials) => {
-  const response = await api.post('/auth/forgot-password', credentials);
+  const response = await api.post('/v1/auth/forgot-password', credentials);
   return response.data;
 };
 
-const resetPasswordApi = async (credentials: ResetPasswordCredentials) => {
-  const response = await api.post('/auth/reset-password', credentials);
+const resetPasswordApi = async (
+  credentials: ResetPasswordCredentials
+): Promise<AuthResponse> => {
+  const { token, password, passwordConfirm } = credentials;
+  const response = await api.patch(`/v1/auth/reset-password/${token}`, {
+    password,
+    passwordConfirm,
+  });
   return response.data;
 };
 
@@ -125,7 +131,7 @@ const verifyEmailApi = async (token: string) => {
 };
 
 const getMeApi = async (): Promise<User> => {
-  const response = await api.get('/v1/user/getMe');
+  const response = await api.get('/v1/users/me');
   return response.data.data?.user ?? response.data.user ?? null;
 };
 
@@ -160,7 +166,7 @@ export const useLogoutMutation = () => {
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: () => api.post('/v1/user/logout'),
+    mutationFn: () => api.post('/v1/auth/logout'),
     onSuccess: () => {
       // Clear all cached data
       queryClient.clear();
@@ -203,8 +209,8 @@ export const useResetPasswordMutation = () => {
 
   return useMutation({
     mutationFn: resetPasswordApi,
-    onSuccess: (data) => {
-      if (data.token && data.data?.user) {
+    onSuccess: (data: AuthResponse) => {
+      if (data.data?.user) {
         queryClient.setQueryData(['user'], data.data.user);
         navigate('/dashboard', { replace: true });
       }

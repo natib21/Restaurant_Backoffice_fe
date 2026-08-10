@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../../app/store';
 import {
+  Bell,
   CheckCircle2,
   LayoutDashboard,
   Loader2,
@@ -16,9 +17,11 @@ import { playOrderSound } from '@/features/Order/lib/soundPlayer';
 import { Button } from '@/components/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import RightSideModal from '@/components/ui/RightSideModal';
+import { toast } from 'sonner';
 
 // Hooks
 import { useCurrentBranchOrAllOrdersQuery } from '../../../api/Queries/orderQuery';
+import { useMyMerchantQuery } from '../../../api/Queries/merchantQueries';
 import OrderDetailsContent from '../Components/OrderDetailsPanel';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +39,7 @@ const ActiveOrdersPage = () => {
   );
   const { data: response, isLoading } =
     useCurrentBranchOrAllOrdersQuery(currentBranchId);
+  const { data: merchantData } = useMyMerchantQuery();
   const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => {
@@ -43,16 +47,43 @@ const ActiveOrdersPage = () => {
   }, [response]);
 
   // ────────────────────────────────────────────────
-  // Socket logic (unchanged)
+  // Socket logic — with merchant settings check
   // ────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
+
+    // Read merchant notification settings (with safe fallbacks)
+    const merchant = (merchantData as any) ?? {};
+    const notifySettings = merchant?.settings?.notifications ?? {};
+    const soundEnabled = notifySettings.orderSoundEnabled !== false; // default true
+    const soundChoice: string | undefined = notifySettings.newOrderSound;
+
     const handleOrderEvent = (incoming: any) => {
       const orderId = incoming._id || incoming.orderId;
       const branchId = incoming.branch?._id || incoming.branch;
       if (currentBranchId && branchId !== currentBranchId) return;
 
-      if (incoming.status === 'pending') playOrderSound();
+      if (incoming.status === 'pending') {
+        // ── Merchant sound check ──────────────────────────────
+        if (soundEnabled) {
+          const soundFile = soundChoice && soundChoice !== 'default'
+            ? `/sounds/${soundChoice}.mp3`
+            : undefined;
+          playOrderSound({ soundFile });
+        }
+
+        // ── Visual toast cue (always fires, even if sound is off or fails) ──
+        const orderLabel = incoming.orderNumber || `#${(incoming._id || '').slice(-6)}`;
+        toast(
+          `🛎️  New Order ${orderLabel}`,
+          {
+            description: incoming.customerName
+              ? `From: ${incoming.customerName}`
+              : `Table ${incoming.tableNumber || '—'}`,
+            duration: 5000,
+          }
+        );
+      }
 
       setOrders((prev) => {
         const existingIndex = prev.findIndex(
@@ -77,7 +108,7 @@ const ActiveOrdersPage = () => {
       socket.off('order-updated', handleOrderEvent);
       socket.off('order:status-updated', handleOrderEvent);
     };
-  }, [socket, currentBranchId, queryClient]);
+  }, [socket, currentBranchId, queryClient, merchantData]);
 
   const stats = useMemo(
     () => ({

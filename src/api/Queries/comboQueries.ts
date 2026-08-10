@@ -106,22 +106,22 @@ export interface BranchOverrideInput {
 
 // === API Calls ===
 const fetchAllCombos = async (): Promise<Combo[]> => {
-  const { data } = await api.get('/v1/menuCombo');
+  const { data } = await api.get('/v1/combo');
   return data.data.combos;
 };
 
 const fetchCombo = async (id: string): Promise<Combo> => {
-  const { data } = await api.get(`/v1/menuCombo/${id}`);
+  const { data } = await api.get(`/v1/combo/${id}`);
   return data.data.combo;
 };
 
 const fetchActiveCombos = async (): Promise<Combo[]> => {
-  const { data } = await api.get('/v1/menuCombo/active');
+  const { data } = await api.get('/v1/combo/active');
   return data.data.combos;
 };
 
 const createCombo = async (formData: FormData): Promise<Combo> => {
-  const { data } = await api.post('/v1/menuCombo', formData, {
+  const { data } = await api.post('/v1/combo', formData, {
     // headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data.combo;
@@ -134,20 +134,20 @@ const updateCombo = async ({
   id: string;
   formData: FormData;
 }): Promise<Combo> => {
-  const { data } = await api.patch(`/v1/menuCombo/${id}`, formData, {
+  const { data } = await api.patch(`/v1/combo/${id}`, formData, {
     // headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data.combo;
 };
 
 const deleteCombo = async (id: string) => {
-  await api.delete(`/v1/menuCombo/${id}`);
+  await api.delete(`/v1/combo/${id}`);
 };
 
 const toggleComboActive = async (
   id: string
 ): Promise<{ isActive: boolean }> => {
-  const { data } = await api.patch(`/v1/menuCombo/${id}/toggle-active`);
+  const { data } = await api.patch(`/v1/combo/${id}/toggle-active`);
   return data.data;
 };
 
@@ -159,7 +159,7 @@ const updateBranchOverride = async ({
   overrideData: BranchOverrideInput;
 }): Promise<Combo> => {
   const { data } = await api.patch(
-    `/v1/menuCombo/${comboId}/branch-override`,
+    `/v1/combo/${comboId}/branch-override`,
     overrideData
   );
   return data.data.combo;
@@ -168,7 +168,7 @@ const updateBranchOverride = async ({
 const toggleBranchActive = async (
   comboId: string
 ): Promise<{ isActive: boolean }> => {
-  const { data } = await api.patch(`/v1/menuCombo/${comboId}/branch-toggle`);
+  const { data } = await api.patch(`/v1/combo/${comboId}/branch-toggle`);
   return data.data;
 };
 

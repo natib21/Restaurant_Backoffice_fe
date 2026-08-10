@@ -34,6 +34,8 @@ import {
   Printer,
   Tag,
   Ticket,
+  Carrot,
+  ChefHat,
 } from 'lucide-react';
 
 interface NavItem {
@@ -119,7 +121,7 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
       subItems: [
         {
           label: 'Customer List',
-          to: '/customers',
+          to: '/customers/list',
           icon: <Users className="h-4 w-4" />,
         },
         {
@@ -134,12 +136,12 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
         },
         {
           label: 'Loyalty Members',
-          to: '/customers/loyalty',
+          to: '/customers',
           icon: <Gift className="h-4 w-4" />,
         },
         {
           label: 'Marketing',
-          to: '/customers/marketing',
+          to: '/marketing/campaigns',
           icon: <Megaphone className="h-4 w-4" />,
         },
       ],
@@ -208,9 +210,19 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
           icon: <Boxes className="h-4 w-4" />,
         },
         {
+          label: 'Ingredients',
+          to: '/inventory/ingredients',
+          icon: <Carrot className="h-4 w-4" />,
+        },
+        {
           label: 'Suppliers',
           to: '/inventory/suppliers',
           icon: <Factory className="h-4 w-4" />,
+        },
+        {
+          label: 'Recipes',
+          to: '/inventory/recipes',
+          icon: <ChefHat className="h-4 w-4" />,
         },
         {
           label: 'Purchase Orders',

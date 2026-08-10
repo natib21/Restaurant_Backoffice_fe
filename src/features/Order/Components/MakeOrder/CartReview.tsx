@@ -42,7 +42,7 @@ const CartReview: React.FC<Props> = ({ onBack, onClose }) => {
   const handleConfirmOrder = () => {
     // 1. Calculate Items with Snapshots (Prices change, snapshots shouldn't)
     const calculatedItems = cart.items.map((item) => ({
-      menuItem: item.id,
+      menuItemId: item.id,
       quantity: item.quantity,
       unitPrice: Number(item.price),
       totalPrice: Number(item.price) * item.quantity,

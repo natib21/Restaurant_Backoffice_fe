@@ -9,8 +9,8 @@ import React, {
 import { io, type Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { type User } from '@/api/Queries/authQueries';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:8000';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:7000';
 
 interface SessionPayload {
   branchId: string;
@@ -68,6 +68,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
   );
 
   useEffect(() => {
+    
     if (!user || !currentBranchId) {
       if (socketRef.current?.connected) {
         socketRef.current.disconnect();
@@ -80,9 +81,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
     let createdSocket = false;
 
     if (!socketRef.current) {
+      // const token = Cookies.get('jwt');
+
+  
       const newSocket = io(SOCKET_URL, {
         transports: ['websocket'],
         withCredentials: true,
+         
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
@@ -103,11 +108,13 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
       };
 
       const onConnect = () => {
+          console.log('SOCKET CONNECTED');
         toast.success('Connected to real-time updates');
         setupSession();
       };
 
       const onDisconnect = (reason: string) => {
+        console.log('SOCKET DISCONNECTED:', reason);
         if (reason === 'io server disconnect') {
           toast.error('Disconnected from server');
         } else {
@@ -123,11 +130,15 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         console.error('Socket error:', err);
         toast.error('Real-time error: ' + (err.message || 'Unknown'));
       };
+        const onConnectError = (err: any) => {
+        console.error('CONNECT ERROR:', err.message);
+      };
 
       newSocket.on('connect', onConnect);
       newSocket.on('disconnect', onDisconnect);
       newSocket.on('reconnect_failed', onReconnectFailed);
       newSocket.on('error', onError);
+      newSocket.on('connect_error', onConnectError);
     }
 
     if (socketRef.current?.connected) {
@@ -137,6 +148,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         permissions,
       } as SessionPayload);
     }
+   
+
+
+    
 
     return () => {
       if (createdSocket && socketRef.current) {

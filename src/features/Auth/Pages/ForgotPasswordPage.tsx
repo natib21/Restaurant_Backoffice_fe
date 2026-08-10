@@ -3,26 +3,19 @@ import { useState } from 'react';
 import { AuthCard } from '../Components/AuthCard';
 import { ForgotPasswordForm } from '../Components/ForgetPasswordForm';
 import { toast } from 'sonner';
-
-// You can create a mutation hook later, e.g., useForgotPasswordMutation
-// For now, we'll simulate it
+import { useForgotPasswordMutation } from '@/api/Queries/authQueries';
 
 export default function ForgotPasswordPage() {
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [serverError, setServerError] = useState<string>('');
-  const [isPending, setIsPending] = useState(false);
+  const forgotPasswordMutation = useForgotPasswordMutation();
 
   const handleSubmit = async (values: { email: string }) => {
-    setIsPending(true);
     setServerError('');
     setSuccessMessage('');
 
     try {
-      // Replace with your actual API call / mutation
-      // await forgotPasswordMutation.mutateAsync(values);
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await forgotPasswordMutation.mutateAsync(values);
 
       setSuccessMessage(
         'If an account exists with this email, we have sent a password reset link.'
@@ -34,8 +27,6 @@ export default function ForgotPasswordPage() {
         'Something went wrong. Please try again.';
       setServerError(message);
       toast.error(message);
-    } finally {
-      setIsPending(false);
     }
   };
 
@@ -44,7 +35,7 @@ export default function ForgotPasswordPage() {
       <AuthCard>
         <ForgotPasswordForm
           onSubmit={handleSubmit}
-          isPending={isPending}
+          isPending={forgotPasswordMutation.isPending}
           successMessage={successMessage}
           serverError={serverError}
         />

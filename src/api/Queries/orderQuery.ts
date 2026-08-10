@@ -82,15 +82,34 @@ export interface StaffCreateOrderPayload {
   customerName?: string;
   customerPhone?: string;
   items: {
-    menuItem: string;
+    menuItemId: string;
     quantity: number;
     notes?: string;
-    unitPrice: number;
-    totalPrice: number;
   }[];
   subtotal: number;
   notes?: string;
 }
+
+/* ======================================================
+   RESPONSE HELPERS
+====================================================== */
+
+const parseOrder = (payload: any): Order => {
+  const body = payload?.data ?? payload;
+  return body?.order ?? body;
+};
+
+const parseOrdersResponse = (payload: any): OrdersResponse => {
+  const body = payload?.data ?? payload;
+  return {
+    orders: body?.orders ?? [],
+    count: body?.count ?? payload?.meta?.count,
+    total: payload?.total,
+    page: payload?.page,
+    pages: payload?.pages,
+    summary: payload?.summary ?? body?.summary,
+  };
+};
 
 /* ======================================================
    QUERY KEYS
@@ -126,38 +145,53 @@ const orderKeys = {
 const fetchOrders = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
-  const { data } = await api.get('/v1/order', { params });
-  return data.data;
-};
-const fetchBranchOrders = async (branchId: string): Promise<OrdersResponse> => {
-  const { data } = await api.get(`/v1/order/${branchId}/orders`);
-  return data.data;
-};
-const fetchActiveOrders = async (): Promise<Order[]> => {
-  const { data } = await api.get('/v1/order/active');
-  return data.data.orders;
+  const { data } = await api.get('/v1/order/active', { params });
+  return parseOrdersResponse(data);
 };
 
-const fetchStatusOrders = async (status: string): Promise<Order[]> => {
-  const { data } = await api.get(`/v1/order/${status}`);
-  return data.data.orders;
+const fetchBranchOrders = async (
+  branchId: string,
+  params?: Record<string, any>
+): Promise<OrdersResponse> => {
+  return fetchOrders({ ...params, branchId });
 };
 
-const fetchCompletedOrders = async (): Promise<{
+const fetchActiveOrders = async (
+  params?: Record<string, any>
+): Promise<Order[]> => {
+  const response = await fetchOrders(params);
+  return response.orders;
+};
+
+const fetchStatusOrders = async (
+  status: string,
+  params?: Record<string, any>
+): Promise<Order[]> => {
+  const { data } = await api.get(`/v1/order/${status}`, { params });
+  return data.data?.orders ?? [];
+};
+
+const fetchCompletedOrders = async (
+  params?: Record<string, any>
+): Promise<{
   orders: Order[];
   summary: OrdersSummary;
 }> => {
-  const { data } = await api.get('/v1/order/completed');
-  return data.data;
+  const { data } = await api.get('/v1/order/completed', { params });
+  return {
+    orders: data.data?.orders ?? [],
+    summary: data.summary ?? data.data?.summary,
+  };
 };
 
 const fetchOrderByNumber = async (orderNumber: string): Promise<Order> => {
   const { data } = await api.get(`/v1/order/number/${orderNumber}`);
-  return data.data.order;
+  return parseOrder(data);
 };
+
 const fetchOrderById = async (orderId: string): Promise<Order> => {
   const { data } = await api.get(`/v1/order/${orderId}`);
-  return data.data.order;
+  return parseOrder(data);
 };
 
 const updateOrderStatus = async ({
@@ -168,7 +202,7 @@ const updateOrderStatus = async ({
   status: Order['status'];
 }): Promise<Order> => {
   const { data } = await api.patch(`/v1/order/${orderId}/status`, { status });
-  return data.data.order;
+  return parseOrder(data);
 };
 
 const markOrderAsPaid = async ({
@@ -178,15 +212,15 @@ const markOrderAsPaid = async ({
   orderId: string;
   data: FormData;
 }): Promise<Order> => {
-  // Pass 'data' as the second argument (the request body)
   const response = await api.post(`/v1/order/${orderId}/pay`, data);
-  return response.data.data.order;
+  return parseOrder(response.data);
 };
+
 const createStaffOrder = async (
   payload: StaffCreateOrderPayload
 ): Promise<Order> => {
   const { data } = await api.post('/v1/order/staff', payload);
-  return data.data.order;
+  return parseOrder(data);
 };
 
 // -------- CUSTOMER --------
@@ -211,10 +245,13 @@ export const useOrdersQuery = (filters?: Record<string, any>) =>
     queryFn: () => fetchOrders(filters),
     staleTime: 120000,
   });
-export const useBranchOrdersQuery = (branchId?: string | null) =>
+export const useBranchOrdersQuery = (
+  branchId?: string | null,
+  filters?: Record<string, any>
+) =>
   useQuery<OrdersResponse, AxiosError>({
     queryKey: orderKeys.byBranch(branchId ?? 'none'),
-    queryFn: () => fetchBranchOrders(branchId!),
+    queryFn: () => fetchBranchOrders(branchId!, filters),
     enabled: !!branchId && branchId.trim() !== '',
     staleTime: 60_000,
   });
