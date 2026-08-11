@@ -33,7 +33,7 @@ const MainLayout: React.FC = () => {
           <Sidebar />
           <main className="flex-1 flex flex-col min-w-0 bg-muted/10 relative">
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
-              <div className="min-h-full p-4 md:p-6 lg:p-8">
+              <div className="min-h-full border border-red-500 ">
                 <Outlet />
               </div>
             </div>

@@ -82,24 +82,15 @@ export interface StaffCreateOrderPayload {
   customerName?: string;
   customerPhone?: string;
   items: {
-<<<<<<< HEAD
     menuItemId: string;
     quantity: number;
     notes?: string;
-=======
-    menuItem: string;
-    quantity: number;
-    notes?: string;
-    unitPrice: number;
-    totalPrice: number;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   }[];
   subtotal: number;
   notes?: string;
 }
 
 /* ======================================================
-<<<<<<< HEAD
    RESPONSE HELPERS
 ====================================================== */
 
@@ -121,8 +112,6 @@ const parseOrdersResponse = (payload: any): OrdersResponse => {
 };
 
 /* ======================================================
-=======
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
    QUERY KEYS
 ====================================================== */
 
@@ -156,7 +145,6 @@ const orderKeys = {
 const fetchOrders = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
-<<<<<<< HEAD
   const { data } = await api.get('/v1/order/active', { params });
   return parseOrdersResponse(data);
 };
@@ -194,49 +182,16 @@ const fetchCompletedOrders = async (
     orders: data.data?.orders ?? [],
     summary: data.summary ?? data.data?.summary,
   };
-=======
-  const { data } = await api.get('/v1/order', { params });
-  return data.data;
-};
-const fetchBranchOrders = async (branchId: string): Promise<OrdersResponse> => {
-  const { data } = await api.get(`/v1/order/${branchId}/orders`);
-  return data.data;
-};
-const fetchActiveOrders = async (): Promise<Order[]> => {
-  const { data } = await api.get('/v1/order/active');
-  return data.data.orders;
-};
-
-const fetchStatusOrders = async (status: string): Promise<Order[]> => {
-  const { data } = await api.get(`/v1/order/${status}`);
-  return data.data.orders;
-};
-
-const fetchCompletedOrders = async (): Promise<{
-  orders: Order[];
-  summary: OrdersSummary;
-}> => {
-  const { data } = await api.get('/v1/order/completed');
-  return data.data;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 const fetchOrderByNumber = async (orderNumber: string): Promise<Order> => {
   const { data } = await api.get(`/v1/order/number/${orderNumber}`);
-<<<<<<< HEAD
   return parseOrder(data);
 };
 
 const fetchOrderById = async (orderId: string): Promise<Order> => {
   const { data } = await api.get(`/v1/order/${orderId}`);
   return parseOrder(data);
-=======
-  return data.data.order;
-};
-const fetchOrderById = async (orderId: string): Promise<Order> => {
-  const { data } = await api.get(`/v1/order/${orderId}`);
-  return data.data.order;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 const updateOrderStatus = async ({
@@ -247,11 +202,7 @@ const updateOrderStatus = async ({
   status: Order['status'];
 }): Promise<Order> => {
   const { data } = await api.patch(`/v1/order/${orderId}/status`, { status });
-<<<<<<< HEAD
   return parseOrder(data);
-=======
-  return data.data.order;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 const markOrderAsPaid = async ({
@@ -261,26 +212,15 @@ const markOrderAsPaid = async ({
   orderId: string;
   data: FormData;
 }): Promise<Order> => {
-<<<<<<< HEAD
   const response = await api.post(`/v1/order/${orderId}/pay`, data);
   return parseOrder(response.data);
 };
 
-=======
-  // Pass 'data' as the second argument (the request body)
-  const response = await api.post(`/v1/order/${orderId}/pay`, data);
-  return response.data.data.order;
-};
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 const createStaffOrder = async (
   payload: StaffCreateOrderPayload
 ): Promise<Order> => {
   const { data } = await api.post('/v1/order/staff', payload);
-<<<<<<< HEAD
   return parseOrder(data);
-=======
-  return data.data.order;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 // -------- CUSTOMER --------
@@ -305,7 +245,6 @@ export const useOrdersQuery = (filters?: Record<string, any>) =>
     queryFn: () => fetchOrders(filters),
     staleTime: 120000,
   });
-<<<<<<< HEAD
 export const useBranchOrdersQuery = (
   branchId?: string | null,
   filters?: Record<string, any>
@@ -313,12 +252,6 @@ export const useBranchOrdersQuery = (
   useQuery<OrdersResponse, AxiosError>({
     queryKey: orderKeys.byBranch(branchId ?? 'none'),
     queryFn: () => fetchBranchOrders(branchId!, filters),
-=======
-export const useBranchOrdersQuery = (branchId?: string | null) =>
-  useQuery<OrdersResponse, AxiosError>({
-    queryKey: orderKeys.byBranch(branchId ?? 'none'),
-    queryFn: () => fetchBranchOrders(branchId!),
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     enabled: !!branchId && branchId.trim() !== '',
     staleTime: 60_000,
   });

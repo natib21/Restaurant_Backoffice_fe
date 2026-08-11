@@ -25,6 +25,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
+import PageHeader from '@/components/Layout/PageHeader';
 
 const TYPE_OPTIONS = [
   { id: 'all', label: 'All Types', icon: <MessageSquare className="h-4 w-4" /> },
@@ -135,25 +136,24 @@ const CustomerFeedbackPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Customer Feedback & Reviews</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Monitor and respond to customer feedback from all channels
-          </p>
-        </div>
-        
+      <PageHeader
+        title="Customer Feedback & Reviews"
+        subtitle="Monitor and respond to customer feedback from all channels"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search feedback..."
+      >
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Export
+          <Button variant="outline" size="sm" className="h-10 text-xs font-medium gap-1.5 rounded-full">
+            <Download className="h-3.5 w-3.5" />
+            <span>Export</span>
           </Button>
-          <Button className="gap-2" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-            Refresh
+          <Button variant="outline" size="sm" className="h-10 text-xs font-medium gap-1.5 rounded-full" onClick={() => refetch()}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
           </Button>
         </div>
-      </div>
+      </PageHeader>
       
       {/* Stats Overview */}
       {isLoading ? (

@@ -46,82 +46,82 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({ isExpanded }) => {
   const branchType = getBranchDisplayName();
 
   return (
-    <div className="px-4 py-6 border-b">
+    <div className="px-3.5 py-4 border-b border-border/70 bg-card/50">
       <div
         className={cn(
           'flex items-center gap-3 transition-all duration-200',
           !isExpanded && 'justify-center'
         )}
       >
-        {/* Logo + Status Dot */}
-        <div className="relative flex-shrink-0">
-          <Building2 className="h-8 w-8 text-blue-900" />
+        {/* Logo Icon + Status Dot */}
+        <div className="relative flex-shrink-0 w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+          <Building2 className="h-4 w-4" />
 
-          {/* Online/Offline dot */}
+          {/* Online/Offline status dot (simplified, clean) */}
           {!isLoading && displayedBranch && (
             <span
               className={cn(
-                'absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background ring-2 ring-background shadow-sm',
-                isBranchActive ? 'bg-green-500' : 'bg-red-500'
+                'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card',
+                isBranchActive ? 'bg-emerald-500' : 'bg-rose-500'
               )}
             />
           )}
 
-          {/* Loading pulse */}
+          {/* Loading status dot */}
           {isLoading && (
-            <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-muted animate-pulse border-2 border-background" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-muted animate-pulse ring-2 ring-card" />
           )}
         </div>
 
         {/* Text Content - Only when expanded */}
         {isExpanded && (
           <motion.div
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -6 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             className="min-w-0 flex-1"
           >
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center justify-between gap-1.5">
               {/* Merchant Name */}
               {isLoading ? (
-                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-28 bg-muted rounded animate-pulse" />
               ) : (
-                <p className="font-bold text-base text-foreground truncate max-w-[180px]">
+                <p className="font-semibold text-xs sm:text-sm text-foreground truncate max-w-[130px] leading-tight">
                   {merchantName}
                 </p>
               )}
 
               {/* Test Mode Badge */}
               {!isLoading && isTestMode && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                  Test Mode
-                </span>
-              )}
-
-              {/* Online/Offline Status */}
-              {!isLoading && displayedBranch && (
-                <span
-                  className={cn(
-                    'text-xs font-medium flex items-center gap-1',
-                    isBranchActive ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  ● {isBranchActive ? 'Online' : 'Offline'}
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider shrink-0">
+                  Test
                 </span>
               )}
             </div>
 
-            {/* Branch Name / Type */}
-            {!isLoading && displayedBranch && (
-              <p className="text-xs text-muted-foreground italic mt-0.5 truncate max-w-[180px]">
-                {branchType || displayedBranch.name}
-              </p>
-            )}
+            {/* Branch Name & Online Status Line */}
+            <div className="flex items-center justify-between gap-1.5 mt-1">
+              {!isLoading && displayedBranch ? (
+                <p className="text-[11px] text-muted-foreground truncate max-w-[110px] font-normal leading-none">
+                  {branchType || displayedBranch.name}
+                </p>
+              ) : isLoading ? (
+                <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+              ) : null}
 
-            {/* Loading skeleton */}
-            {isLoading && (
-              <div className="mt-1 h-4 w-24 bg-muted rounded animate-pulse" />
-            )}
+              {!isLoading && displayedBranch && (
+                <span
+                  className={cn(
+                    'text-[10px] font-medium leading-none shrink-0',
+                    isBranchActive
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-muted-foreground'
+                  )}
+                >
+                  {isBranchActive ? 'Online' : 'Offline'}
+                </span>
+              )}
+            </div>
           </motion.div>
         )}
       </div>

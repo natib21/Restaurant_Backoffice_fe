@@ -51,19 +51,19 @@ const FilterTab = ({
   <button
     onClick={onClick}
     className={cn(
-      'relative flex flex-col items-center justify-center min-w-[52px] sm:min-w-[46px] py-2 rounded-xl border transition-all gap-1',
+      'relative flex flex-col items-center justify-center min-w-[50px] sm:min-w-[44px] py-1.5 rounded-md border text-xs font-medium transition-colors gap-0.5',
       active
-        ? 'bg-primary border-primary text-primary-foreground shadow-md scale-105'
-        : 'bg-background border-border text-muted-foreground hover:border-primary/50'
+        ? 'bg-primary border-primary text-primary-foreground font-semibold shadow-xs'
+        : 'bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/50'
     )}
   >
     {count > 0 && (
-      <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white ring-2 ring-background">
+      <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-semibold text-white ring-2 ring-card">
         {count}
       </span>
     )}
     {icon}
-    <span className="text-[9px] font-black uppercase tracking-tighter">
+    <span className="text-[10px] leading-none uppercase tracking-tight">
       {label}
     </span>
   </button>
@@ -99,8 +99,8 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
     isFetching,
   } = useCurrentBranchOrAllOrdersQuery(currentBranchId);
 
-  const currentUser = userData?.data?.user || userData;
-  const ordersFromApi = response?.orders || [];
+  const currentUser = (userData as any)?.data?.user || userData;
+  const ordersFromApi = useMemo(() => response?.orders || [], [response?.orders]);
 
   const { mutate: updateStatus } = useUpdateOrderStatusMutation();
 
@@ -120,10 +120,15 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Clear orders when branch changes
+  useEffect(() => {
+    setOrders([]);
+  }, [currentBranchId]);
+
   // Sync API data
   useEffect(() => {
     setOrders(ordersFromApi);
-  }, []);
+  }, [ordersFromApi]);
 
   /* ---------------------------------- Socket Logic --------------------------------- */
   useEffect(() => {
@@ -171,9 +176,10 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
 
       const matchesFilter = () => {
         switch (activeFilter) {
-          case 'mine':
+          case 'mine': {
             const creatorId = order.placedBy?._id || order.placedBy;
             return creatorId === currentUser?._id;
+          }
           case 'pending':
             return order.status === 'pending';
           case 'served':
@@ -209,12 +215,12 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
   /* ---------------------------------- Helpers ---------------------------------- */
   const getStatusStyles = (status: string) => {
     const styles: Record<string, string> = {
-      pending: 'bg-amber-500/10 text-amber-600 border-amber-200',
-      accepted: 'bg-blue-500/10 text-blue-600 border-blue-200',
-      preparing: 'bg-orange-500/10 text-orange-600 border-orange-200',
-      ready: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
+      pending: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      accepted: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+      preparing: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+      ready: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
     };
-    return styles[status] || 'bg-gray-500/10 text-gray-600 border-gray-200';
+    return styles[status] || 'bg-muted text-muted-foreground border-border';
   };
 
   const handleQuickJoin = (
@@ -247,7 +253,7 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => dispatch(setOrderSidebarOpen(false))}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-background/80 backdrop-blur-xs z-40"
             />
           )}
 
@@ -255,74 +261,74 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r shadow-2xl w-full lg:w-[320px] lg:relative lg:shadow-none"
+            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            className="fixed inset-y-0 left-0 z-50 flex flex-col bg-card border-r border-border/80 shadow-xl w-full lg:w-[310px] lg:relative lg:shadow-none"
           >
             {/* Header */}
-            <div className="p-4 border-b flex items-center justify-between bg-card">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <ShoppingBag className="h-5 w-5 text-primary" />
+            <div className="p-3.5 border-b border-border/80 flex items-center justify-between bg-card">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 bg-primary/10 text-primary rounded-md">
+                  <ShoppingBag className="h-4 w-4" />
                 </div>
-                <h2 className="text-sm font-black uppercase tracking-widest">
-                  Orders
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  Orders Queue
                 </h2>
               </div>
               {isMobile && (
                 <button
                   onClick={() => dispatch(setOrderSidebarOpen(false))}
-                  className="p-2 hover:bg-muted rounded-full"
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               )}
             </div>
 
             {/* Search & Filters */}
-            <div className="p-3 border-b space-y-3 bg-muted/10">
+            <div className="p-3 border-b border-border/70 space-y-2.5 bg-muted/20">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search table or ID..."
-                  className="pl-9 h-10 text-xs bg-background"
+                  className="pl-8 h-8 text-xs bg-card border-border/80 focus-visible:ring-1 focus-visible:ring-ring rounded-md"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pb-1">
+              <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                 <FilterTab
                   active={activeFilter === 'all'}
                   onClick={() => setActiveFilter('all')}
-                  icon={<LayoutGrid size={14} />}
+                  icon={<LayoutGrid size={13} />}
                   label="All"
                   count={counts.all}
                 />
                 <FilterTab
                   active={activeFilter === 'mine'}
                   onClick={() => setActiveFilter('mine')}
-                  icon={<UserIcon size={14} />}
+                  icon={<UserIcon size={13} />}
                   label="Mine"
                   count={counts.mine}
                 />
                 <FilterTab
                   active={activeFilter === 'pending'}
                   onClick={() => setActiveFilter('pending')}
-                  icon={<Timer size={14} />}
+                  icon={<Timer size={13} />}
                   label="New"
                   count={counts.pending}
                 />
                 <FilterTab
                   active={activeFilter === 'served'}
                   onClick={() => setActiveFilter('served')}
-                  icon={<Truck size={14} />}
+                  icon={<Truck size={13} />}
                   label="Served"
                   count={counts.served}
                 />
                 <FilterTab
                   active={activeFilter === 'completed'}
                   onClick={() => setActiveFilter('completed')}
-                  icon={<CheckCircle2 size={14} />}
+                  icon={<CheckCircle2 size={13} />}
                   label="Done"
                   count={counts.completed}
                 />
@@ -332,21 +338,21 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
             {/* Order List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {(isLoading || isFetching) && orders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
-                  <Clock className="h-8 w-8 animate-spin text-primary/40" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+                  <Clock className="h-6 w-6 animate-spin text-primary/60" />
+                  <span className="text-xs font-medium">
                     Updating Orders...
                   </span>
                 </div>
               ) : filteredOrders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground opacity-30 gap-3">
-                  <Package className="h-12 w-12" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">
-                    Empty Kitchen
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/60 gap-2">
+                  <Package className="h-10 w-10 stroke-1" />
+                  <p className="text-xs font-medium">
+                    No orders found
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col divide-y divide-border/50">
+                <div className="flex flex-col divide-y divide-border/40">
                   {filteredOrders.map((order) => {
                     const id = order._id || order.id;
                     const isActive = selectedId === id;
@@ -361,57 +367,58 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
                           if (isMobile) dispatch(setOrderSidebarOpen(false));
                         }}
                         className={cn(
-                          'group relative p-4 text-left transition-all duration-200 border-l-4',
+                          'group relative p-3 text-left transition-colors border-l-2',
                           isActive
-                            ? 'bg-primary/[0.06] border-primary'
-                            : 'hover:bg-muted/40 border-transparent',
+                            ? 'bg-primary/5 border-l-primary'
+                            : 'hover:bg-muted/40 border-l-transparent',
                           order.isNew && 'bg-amber-500/5'
                         )}
                       >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="space-y-1">
+                        <div className="flex justify-between items-start mb-1.5">
+                          <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-black uppercase tracking-tighter">
+                              <span className="text-xs font-semibold text-foreground">
                                 {order.table?.tableNumber
                                   ? `Table ${order.table.tableNumber}`
                                   : order.orderType?.replace('_', ' ')}
                               </span>
                               <Badge
                                 className={cn(
-                                  'text-[8px] h-4 px-1.5 uppercase font-black border',
+                                  'text-[9px] h-4 px-1.5 uppercase font-medium border-0',
                                   getStatusStyles(order.status)
                                 )}
                               >
                                 {order.status}
                               </Badge>
                             </div>
-                            <h4 className="text-[10px] font-mono text-muted-foreground/70">
+                            <p className="text-[10px] font-mono text-muted-foreground">
                               #{order.orderNumber}
-                            </h4>
+                            </p>
                           </div>
 
                           <button
                             onClick={(e) =>
                               handleQuickJoin(e, id, order.status)
                             }
-                            className="p-1.5 bg-primary text-primary-foreground rounded-md shadow-sm hover:scale-110 active:scale-95 transition-all"
+                            title="Advance order status"
+                            className="p-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-colors"
                           >
                             <UserPlus className="h-3.5 w-3.5" />
                           </button>
                         </div>
 
-                        <div className="flex justify-between items-center text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex justify-between items-center text-[10px] text-muted-foreground font-medium">
+                          <div className="flex items-center gap-1">
                             {order.orderType === 'dine_in' ? (
-                              <Table2 size={12} />
+                              <Table2 size={11} />
                             ) : (
-                              <Truck size={12} />
+                              <Truck size={11} />
                             )}
-                            <span className="opacity-80">
+                            <span className="capitalize">
                               {order.orderType?.replace('_', ' ')}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded">
+                          <div className="flex items-center gap-1 text-muted-foreground">
                             <Clock size={10} />
                             {order.placedAt
                               ? formatDistanceToNow(new Date(order.placedAt), {

@@ -2,10 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../../app/store';
 import {
-<<<<<<< HEAD
   Bell,
-=======
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   CheckCircle2,
   LayoutDashboard,
   Loader2,
@@ -20,17 +17,11 @@ import { playOrderSound } from '@/features/Order/lib/soundPlayer';
 import { Button } from '@/components/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import RightSideModal from '@/components/ui/RightSideModal';
-<<<<<<< HEAD
 import { toast } from 'sonner';
 
 // Hooks
 import { useCurrentBranchOrAllOrdersQuery } from '../../../api/Queries/orderQuery';
 import { useMyMerchantQuery } from '../../../api/Queries/merchantQueries';
-=======
-
-// Hooks
-import { useCurrentBranchOrAllOrdersQuery } from '../../../api/Queries/orderQuery';
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 import OrderDetailsContent from '../Components/OrderDetailsPanel';
 import { cn } from '@/lib/utils';
 
@@ -48,10 +39,7 @@ const ActiveOrdersPage = () => {
   );
   const { data: response, isLoading } =
     useCurrentBranchOrAllOrdersQuery(currentBranchId);
-<<<<<<< HEAD
   const { data: merchantData } = useMyMerchantQuery();
-=======
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => {
@@ -59,7 +47,6 @@ const ActiveOrdersPage = () => {
   }, [response]);
 
   // ────────────────────────────────────────────────
-<<<<<<< HEAD
   // Socket logic — with merchant settings check
   // ────────────────────────────────────────────────
   useEffect(() => {
@@ -71,18 +58,11 @@ const ActiveOrdersPage = () => {
     const soundEnabled = notifySettings.orderSoundEnabled !== false; // default true
     const soundChoice: string | undefined = notifySettings.newOrderSound;
 
-=======
-  // Socket logic (unchanged)
-  // ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!socket) return;
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     const handleOrderEvent = (incoming: any) => {
       const orderId = incoming._id || incoming.orderId;
       const branchId = incoming.branch?._id || incoming.branch;
       if (currentBranchId && branchId !== currentBranchId) return;
 
-<<<<<<< HEAD
       if (incoming.status === 'pending') {
         // ── Merchant sound check ──────────────────────────────
         if (soundEnabled) {
@@ -104,9 +84,6 @@ const ActiveOrdersPage = () => {
           }
         );
       }
-=======
-      if (incoming.status === 'pending') playOrderSound();
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
       setOrders((prev) => {
         const existingIndex = prev.findIndex(
@@ -131,11 +108,7 @@ const ActiveOrdersPage = () => {
       socket.off('order-updated', handleOrderEvent);
       socket.off('order:status-updated', handleOrderEvent);
     };
-<<<<<<< HEAD
   }, [socket, currentBranchId, queryClient, merchantData]);
-=======
-  }, [socket, currentBranchId, queryClient]);
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 
   const stats = useMemo(
     () => ({

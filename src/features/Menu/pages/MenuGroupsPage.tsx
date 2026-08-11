@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import RightSideModal from '@/components/ui/RightSideModal';
+import PageHeader from '@/components/Layout/PageHeader';
 import MenuGroupFormPage from '../Components/MenuGroupFormPage';
 
 import { toast } from 'sonner';
@@ -208,61 +209,17 @@ const MenuGroupsPage = () => {
 
   return (
     <div className="bg-background min-h-screen">
-      {/* Premium Header */}
-      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-blur]:bg-background/60">
-        <div className="mx-auto flex h-16 items-center px-4  gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/menu')}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                Menu Groups
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Organize your menu into Groups
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-1 items-center justify-end gap-4">
-            <div className="hidden md:flex w-72 lg:w-96">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search groups..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-muted/50"
-                />
-              </div>
-            </div>
-
-            <Button onClick={openAdd} size="sm" className="shadow-sm">
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">New Group</span>
-              <span className="sm:hidden">Group</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile Search */}
-        <div className="md:hidden px-4 pb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search groups..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        title="Menu Groups"
+        subtitle="Organize your menu into Groups"
+        breadcrumbText="Menu"
+        breadcrumbAction={() => navigate('/menu')}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search groups..."
+        actionLabel="New Group"
+        onAction={openAdd}
+      />
 
       {/* Main Content */}
       <main className="mx-auto  p-4 lg:p-8">

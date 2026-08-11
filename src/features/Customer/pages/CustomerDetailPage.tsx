@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import PageHeader from '@/components/Layout/PageHeader';
 
 const CustomerDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -223,45 +224,34 @@ const CustomerDetailPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => navigate('/customers')}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {isLoading ? <Skeleton className="h-8 w-48" /> : customer?.fullName}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Customer ID: {id}
-            </p>
-          </div>
-        </div>
-        
+      <PageHeader
+        title={isLoading ? 'Loading...' : (customer?.fullName || 'Customer Details')}
+        subtitle={`Customer ID: ${id}`}
+        breadcrumbText="Customers"
+        breadcrumbAction={() => navigate('/customers')}
+      >
         <div className="flex gap-2">
           {isEditing ? (
             <>
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => setIsEditing(false)}
-                className="gap-2"
+                className="h-10 text-xs font-medium gap-1.5 rounded-full"
               >
-                <X className="h-4 w-4" />
-                Cancel
+                <X className="h-3.5 w-3.5" />
+                <span>Cancel</span>
               </Button>
               <Button 
+                size="sm"
                 onClick={handleUpdateCustomer}
-                className="gap-2"
+                className="h-10 text-xs font-medium gap-1.5 rounded-full"
                 disabled={updateCustomerMutation.isPending}
               >
                 {updateCustomerMutation.isPending ? 'Saving...' : (
                   <>
-                    <Save className="h-4 w-4" />
-                    Save
+                    <Save className="h-3.5 w-3.5" />
+                    <span>Save</span>
                   </>
                 )}
               </Button>
@@ -270,25 +260,27 @@ const CustomerDetailPage: React.FC = () => {
             <>
               <Button 
                 variant="outline" 
+                size="sm"
                 onClick={() => setIsEditing(true)}
-                className="gap-2"
+                className="h-10 text-xs font-medium gap-1.5 rounded-full"
               >
-                <Edit className="h-4 w-4" />
-                Edit
+                <Edit className="h-3.5 w-3.5" />
+                <span>Edit</span>
               </Button>
               <Button 
                 variant="destructive" 
+                size="sm"
                 onClick={handleDeleteCustomer}
-                className="gap-2"
+                className="h-10 text-xs font-medium gap-1.5 rounded-full"
                 disabled={deleteCustomerMutation.isPending}
               >
-                <Trash2 className="h-4 w-4" />
-                Delete
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Delete</span>
               </Button>
             </>
           )}
         </div>
-      </div>
+      </PageHeader>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Customer Info */}

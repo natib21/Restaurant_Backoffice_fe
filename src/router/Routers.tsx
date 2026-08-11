@@ -6,7 +6,7 @@ import ForgotPasswordPage from '@/features/Auth/Pages/ForgotPasswordPage';
 import PrivateRoute from './PrivateRoute';
 import MainLayout from '@/components/Layout/MainLayout';
 
-// import Overview from '../features/Overview/Pages/Overview';
+import Overview from '../features/Overview/Pages/Overview';
 
 import MenuItemsPage from '../features/Menu/pages/MenuItemsPage';
 import MenuGroupsPage from '../features/Menu/pages/MenuGroupsPage';

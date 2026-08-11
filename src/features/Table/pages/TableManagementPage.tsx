@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import RightSideModal from '@/components/ui/RightSideModal';
+import PageHeader from '@/components/Layout/PageHeader';
 import TableFormPage from '../Components/TableFormPage';
 import TableDetailPage from './TableDetailPage';
 import { toast } from 'sonner';
@@ -156,146 +157,70 @@ const TableManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur-md dark:bg-slate-900/80">
-        <div className="flex h-16 items-center px-4 sm:px-6 gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="rounded-full"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+      <PageHeader
+        title="Table Management"
+        subtitle={`${currentBranchName} • ${tables.filter((t: any) => t.status === 'available').length} Available • ${tables.length} Total`}
+        breadcrumbText="Back"
+        breadcrumbAction={() => navigate(-1)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search tables, sections, or branches..."
+        actionLabel="Add Table"
+        onAction={openAdd}
+      />
 
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-              Table Management
-            </h1>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
-              <span className="flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5" />
-                {currentBranchName}
-              </span>
-
-              <span className="h-1 w-1 rounded-full bg-slate-300" />
-
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                {
-                  tables.filter((t: any) => t.status === 'available').length
-                }{' '}
-                Available
-              </span>
-
-              <span className="h-1 w-1 rounded-full bg-slate-300" />
-              <span>{tables.length} Total</span>
-            </div>
-          </div>
-
-          {/* Desktop Search */}
-          <div className="hidden sm:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search tables, sections, or branches..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-80 bg-slate-100/50 border-none focus-visible:ring-1"
-              />
-            </div>
-          </div>
-
-          {/* Mobile Search Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowSearch(!showSearch)}
-            className="sm:hidden"
-          >
-            <Search className="h-5 w-5" />
-          </Button>
-
-          {/* Add Button */}
-          <Button
-            onClick={openAdd}
-            size="sm"
-            className="hidden sm:flex shadow-sm"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Table
-          </Button>
-        </div>
-
-        {/* Mobile Search */}
-        {showSearch && (
-          <div className="px-4 pb-4 sm:hidden">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search tables..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-100/50 border-none focus-visible:ring-1"
-                autoFocus
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="border-t bg-white/50 dark:bg-slate-900/50">
-          <div className="px-4 sm:px-6 py-3">
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500"
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Filters {showFilters ? '▲' : '▼'}
-              </Button>
-
-              <span className="text-xs text-slate-500">
-                {filteredTables.length} table
-                {filteredTables.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            <div
-              className={`mt-3 space-y-3 sm:space-y-0 sm:flex sm:gap-4 ${showFilters ? 'block' : 'hidden sm:flex'}`}
+      {/* Filters */}
+      <div className="border-b bg-background/95 backdrop-blur-sm">
+        <div className="px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
             >
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="h-9 w-full sm:w-[160px] text-sm">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {Object.keys(statusConfig).map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {statusConfig[k].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Filter className="h-3.5 w-3.5" />
+              Filters {showFilters ? '▲' : '▼'}
+            </Button>
 
-              <Select value={filterSection} onValueChange={setFilterSection}>
-                <SelectTrigger className="h-9 w-full sm:w-[160px] text-sm">
-                  <SelectValue placeholder="All Sections" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sections.map((sec) => (
-                    <SelectItem key={sec} value={sec} className="capitalize">
-                      {sec === 'all' ? 'All Sections' : sec}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <span className="text-xs text-muted-foreground">
+              {filteredTables.length} table
+              {filteredTables.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div
+            className={`mt-3 space-y-3 sm:space-y-0 sm:flex sm:gap-4 ${showFilters ? 'block' : 'hidden sm:flex'}`}
+          >
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-9 w-full sm:w-[160px] text-sm">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {Object.keys(statusConfig).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {statusConfig[k].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterSection} onValueChange={setFilterSection}>
+              <SelectTrigger className="h-9 w-full sm:w-[160px] text-sm">
+                <SelectValue placeholder="All Sections" />
+              </SelectTrigger>
+              <SelectContent>
+                {sections.map((sec) => (
+                  <SelectItem key={sec} value={sec} className="capitalize">
+                    {sec === 'all' ? 'All Sections' : sec}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Floor Plan Grid */}
       <main className="p-4 sm:p-8 pb-24 sm:pb-8">

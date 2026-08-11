@@ -17,6 +17,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { format } from 'date-fns';
+import PageHeader from '@/components/Layout/PageHeader';
 
 // Mock data for customer groups
 const CUSTOMER_GROUPS = [
@@ -147,19 +148,15 @@ const CustomerGroupsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Customer Groups & Segments</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create and manage customer segments for targeted marketing and analysis
-          </p>
-        </div>
-        
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create New Group
-        </Button>
-      </div>
+      <PageHeader
+        title="Customer Groups & Segments"
+        subtitle="Create and manage customer segments for targeted marketing and analysis"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search groups..."
+        actionLabel="Create New Group"
+        onAction={() => {}}
+      />
       
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

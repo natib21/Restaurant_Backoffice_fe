@@ -65,10 +65,7 @@ const Header: React.FC = () => {
     (state: RootState) => state.ui
   );
   const socket = useSocket();
-<<<<<<< HEAD
-  console.log(socket ? 'Socket is available in Header' : 'No socket in Header');  
-=======
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
+  console.log(socket ? 'Socket is available in Header' : 'No socket in Header');
   const [isConnected, setIsConnected] = useState(false);
   const { data: user } = useGetMeQuery();
   const { data: branches = [], isLoading: branchesLoading } =
@@ -99,6 +96,7 @@ const Header: React.FC = () => {
     if (!user) return '??';
     return `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
   };
+
   useEffect(() => {
     if (!socket) return;
     setIsConnected(socket.connected);
@@ -111,6 +109,7 @@ const Header: React.FC = () => {
       socket.off('disconnect', onDisconnect);
     };
   }, [socket]);
+
   const handleLogout = async () => {
     await logoutMutation.mutateAsync();
   };
@@ -122,24 +121,24 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="bg-background/80 backdrop-blur-md border-b sticky top-0 z-50 w-full transition-all">
-        <div className="px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/95 backdrop-blur-sm transition-colors">
+        <div className="px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-4">
           {/* LEFT: Sidebar & Logo & Mobile Branch Trigger */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => dispatch(toggleSidebar())}
-              className="lg:hidden"
+              className="lg:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
             >
-              <MenuIcon className="h-5 w-5" />
+              <MenuIcon className="h-4 w-4" />
             </Button>
 
-            <div className="flex items-center gap-2 mr-1">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 bg-primary rounded-lg sm:rounded-xl flex items-center justify-center shadow-sm">
-                <Building2 className="h-4 w-4 sm:h-5 text-primary-foreground" />
+            <div className="flex items-center gap-2.5 mr-1">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
+                <Building2 className="h-4 w-4" />
               </div>
-              <span className="text-base sm:text-lg font-extrabold tracking-tight hidden sm:block">
+              <span className="text-sm font-semibold tracking-tight text-foreground hidden sm:inline-block">
                 Tiru<span className="text-primary">Solutions</span>
               </span>
             </div>
@@ -147,20 +146,20 @@ const Header: React.FC = () => {
             {/* MOBILE BRANCH SELECTOR */}
             <div className="sm:hidden">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild className="">
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className=" h-8 gap-1 px-2 rounded-full border-primary/20 bg-primary/5"
+                    className="h-7 gap-1.5 px-2.5 rounded-md border-border bg-muted/40 hover:bg-muted/70 text-xs font-medium shadow-none"
                   >
-                    <MapPin className="h-3 w-3 text-primary" />
-                    <span className="text-[10px] font-bold max-w-[60px] truncate">
-                      {currentBranch ? currentBranch.name : 'All'}
+                    <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="text-xs max-w-[80px] truncate">
+                      {currentBranch ? currentBranch.name : 'All Locations'}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[200px]">
-                  <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">
+                <DropdownMenuContent align="start" className="w-[200px] rounded-lg">
+                  <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                     Switch Branch
                   </DropdownMenuLabel>
                   <DropdownMenuRadioGroup
@@ -185,83 +184,78 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 max-w-md hidden sm:flex items-center justify-center">
+          {/* CENTER: Desktop Branch Selector & Status */}
+          <div className="flex-1 max-w-sm lg:max-w-md hidden sm:flex items-center justify-center">
             {branchesLoading ? (
-              <Skeleton className="h-10 w-full rounded-full" />
+              <Skeleton className="h-9 w-full rounded-lg" />
             ) : (
-              <div className="flex items-center w-full bg-muted/50 border border-border rounded-full px-3 py-1 hover:border-primary/40 transition-all">
-                <MapPin className="h-4 w-4 text-primary shrink-0 mr-2" />
+              <div className="flex items-center w-full bg-muted/40 hover:bg-muted/60 border border-border/80 rounded-lg px-2.5 py-0.5 transition-colors">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-0.5 mr-1" />
                 <Select
                   value={currentBranchId || 'all'}
                   onValueChange={handleBranchChange}
                 >
-                  <SelectTrigger className="border-0 bg-transparent focus:ring-0 shadow-none h-8 text-sm font-semibold grow">
+                  <SelectTrigger className="border-0 bg-transparent focus:ring-0 shadow-none h-7 text-xs font-medium text-foreground grow hover:bg-transparent px-1 focus:outline-none">
                     <SelectValue placeholder="All Branches" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="all" className="font-semibold">
+                  <SelectContent className="rounded-lg border border-border shadow-md">
+                    <SelectItem value="all" className="font-medium text-xs">
                       All Locations
                     </SelectItem>
                     <DropdownMenuSeparator />
                     {branches.map((b) => (
-                      <SelectItem key={b._id} value={b._id}>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm">{b.name}</span>
-                          <span className="text-[10px] opacity-60 italic">
-                            {b.location?.city}
-                          </span>
+                      <SelectItem key={b._id} value={b._id} className="text-xs">
+                        <div className="flex flex-col py-0.5">
+                          <span className="font-medium text-xs text-foreground">{b.name}</span>
+                          {b.location?.city && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {b.location.city}
+                            </span>
+                          )}
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                <div className="h-4 w-[1px] bg-border mx-2" />
+                <div className="h-3.5 w-[1px] bg-border/80 shrink-0 mx-2" />
 
                 {/* DYNAMIC LIVE INDICATOR */}
-                <div className="h-4 w-[1px] bg-border mx-2" />
-
-                {/* DYNAMIC LIVE INDICATOR */}
-                <div className="flex items-center gap-1.5 px-2 shrink-0">
-                  <div
-                    className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
+                <div className="flex items-center gap-1.5 px-1 shrink-0">
+                  <span
+                    className={`h-2 w-2 rounded-full shrink-0 ${
                       isConnected
-                        ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse'
-                        : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]'
+                        ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
+                        : 'bg-zinc-400 dark:bg-zinc-500'
                     }`}
                   />
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider transition-colors ${
-                        isConnected ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
-                    >
-                      {isConnected ? 'Live' : 'Offline'}
-                    </span>
-                  </div>
-                  {/* Subtle icon for extra clarity */}
-                  {isConnected ? (
-                    <Wifi className="h-3 w-3 text-emerald-500/70" />
-                  ) : (
-                    <WifiOff className="h-3 w-3 text-rose-500/70" />
-                  )}
+                  <span
+                    className={`text-[11px] font-medium tracking-wide ${
+                      isConnected
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-muted-foreground'
+                    }`}
+                  >
+                    {isConnected ? 'Live' : 'Offline'}
+                  </span>
                 </div>
               </div>
             )}
           </div>
 
           {/* RIGHT: Buttons & User Profile */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* DESKTOP THEME & LANG (Hidden on Mobile) */}
-            <div className="hidden md:flex items-center gap-1 mr-2">
+            <div className="hidden md:flex items-center gap-1 mr-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-full"
+                className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
                 onClick={() => dispatch(toggleTheme())}
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {darkMode ? (
-                  <Sun className="h-4 w-4 text-yellow-500" />
+                  <Sun className="h-4 w-4 text-amber-500" />
                 ) : (
                   <Moon className="h-4 w-4" />
                 )}
@@ -271,17 +265,19 @@ const Header: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="h-9 gap-2 px-3 rounded-full font-bold text-xs uppercase"
+                    size="sm"
+                    className="h-8 px-2.5 rounded-md font-medium text-xs text-muted-foreground hover:text-foreground gap-1.5"
                   >
-                    <Globe className="h-4 w-4" />
-                    {language}
+                    <Globe className="h-3.5 w-3.5" />
+                    <span>{language}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-32 rounded-lg">
                   {languages.map((l) => (
                     <DropdownMenuItem
                       key={l.code}
                       onClick={() => dispatch(setLanguage(l.code))}
+                      className="text-xs font-medium"
                     >
                       {l.label}
                     </DropdownMenuItem>
@@ -290,51 +286,51 @@ const Header: React.FC = () => {
               </DropdownMenu>
             </div>
 
+            {/* Primary CTA Button */}
             <Button
               onClick={() => setIsNewOrderOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground h-9 sm:h-10 px-3 sm:px-4 rounded-lg flex gap-2 active:scale-95 transition-all shadow-md shadow-primary/10"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 sm:h-9 px-3 sm:px-3.5 rounded-md text-xs sm:text-sm font-medium flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98]"
             >
-              <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="font-bold text-xs sm:text-sm hidden sm:inline">
-                New Order
-              </span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Order</span>
             </Button>
 
+            {/* User Dropdown Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-full border border-primary/10 p-0.5"
+                  className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full p-0 border border-border hover:border-border/80 transition-colors focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <Avatar className="h-full w-full">
                     <AvatarImage src={user?.avatar} />
-                    <AvatarFallback className="bg-primary/5 text-[10px] font-bold">
+                    <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 mt-2" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1 py-1">
-                    <p className="text-sm font-bold leading-none">
+              <DropdownMenuContent className="w-60 rounded-lg shadow-lg border border-border p-1 mt-1.5" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal p-2">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-semibold leading-none text-foreground">
                       {user
                         ? `${user.firstName} ${user.lastName}`
                         : 'System User'}
                     </p>
-                    <p className="text-xs text-muted-foreground leading-none">
+                    <p className="text-xs text-muted-foreground leading-none truncate">
                       {user?.email || 'admin@pos.com'}
                     </p>
-                    <div className="pt-2 flex gap-1">
+                    <div className="pt-2 flex items-center gap-1.5">
                       <Badge
                         variant="secondary"
-                        className="text-[9px] h-4 uppercase font-bold tracking-wider"
+                        className="text-[10px] font-medium px-1.5 py-0.2 rounded-md bg-muted text-muted-foreground border-0"
                       >
                         Admin
                       </Badge>
                       <Badge
                         variant="outline"
-                        className="text-[9px] h-4 uppercase font-bold tracking-wider"
+                        className="text-[10px] font-medium px-1.5 py-0.2 rounded-md text-muted-foreground border-border"
                       >
                         {language}
                       </Badge>
@@ -342,7 +338,7 @@ const Header: React.FC = () => {
                   </div>
                 </DropdownMenuLabel>
 
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="-mx-1 my-1" />
 
                 {/* MOBILE THEME & LANG (Visible only on Mobile inside menu) */}
                 <div className="md:hidden">
@@ -353,13 +349,13 @@ const Header: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-7 w-7 rounded-full p-0"
+                      className="h-7 w-7 rounded-md p-0"
                       onClick={() => dispatch(toggleTheme())}
                     >
                       {darkMode ? (
-                        <Sun className="h-3 w-3 text-yellow-500" />
+                        <Sun className="h-3.5 w-3.5 text-amber-500" />
                       ) : (
-                        <Moon className="h-3 w-3" />
+                        <Moon className="h-3.5 w-3.5" />
                       )}
                     </Button>
                   </div>
@@ -372,7 +368,7 @@ const Header: React.FC = () => {
                         <Button
                           key={l.code}
                           variant={language === l.code ? 'secondary' : 'ghost'}
-                          className="h-6 px-1.5 text-[10px] font-bold"
+                          className="h-6 px-1.5 text-[10px] font-medium rounded-md"
                           onClick={() => dispatch(setLanguage(l.code))}
                         >
                           {l.code}
@@ -380,27 +376,27 @@ const Header: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                  <DropdownMenuSeparator />
+                  <DropdownMenuSeparator className="-mx-1 my-1" />
                 </div>
 
                 <DropdownMenuGroup>
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
+                  <DropdownMenuItem className="text-xs font-medium cursor-pointer rounded-md">
+                    <User className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
                     <span>My Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild className="text-xs font-medium cursor-pointer rounded-md">
                     <Link to="/settings" className="flex items-center">
-                      <Settings className="mr-2 h-4 w-4" />
+                      <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
                       <span>Settings</span>
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="-mx-1 my-1" />
                 <DropdownMenuItem
-                  className="text-destructive focus:bg-destructive focus:text-destructive-foreground transition-colors"
+                  className="text-xs font-medium text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer rounded-md transition-colors"
                   onClick={handleLogout}
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <LogOut className="mr-2 h-3.5 w-3.5" />
                   <span>Log out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

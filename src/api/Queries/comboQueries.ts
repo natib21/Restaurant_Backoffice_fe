@@ -106,38 +106,22 @@ export interface BranchOverrideInput {
 
 // === API Calls ===
 const fetchAllCombos = async (): Promise<Combo[]> => {
-<<<<<<< HEAD
   const { data } = await api.get('/v1/combo');
-=======
-  const { data } = await api.get('/v1/menuCombo');
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.combos;
 };
 
 const fetchCombo = async (id: string): Promise<Combo> => {
-<<<<<<< HEAD
   const { data } = await api.get(`/v1/combo/${id}`);
-=======
-  const { data } = await api.get(`/v1/menuCombo/${id}`);
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.combo;
 };
 
 const fetchActiveCombos = async (): Promise<Combo[]> => {
-<<<<<<< HEAD
   const { data } = await api.get('/v1/combo/active');
-=======
-  const { data } = await api.get('/v1/menuCombo/active');
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data.combos;
 };
 
 const createCombo = async (formData: FormData): Promise<Combo> => {
-<<<<<<< HEAD
   const { data } = await api.post('/v1/combo', formData, {
-=======
-  const { data } = await api.post('/v1/menuCombo', formData, {
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     // headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data.combo;
@@ -150,32 +134,20 @@ const updateCombo = async ({
   id: string;
   formData: FormData;
 }): Promise<Combo> => {
-<<<<<<< HEAD
   const { data } = await api.patch(`/v1/combo/${id}`, formData, {
-=======
-  const { data } = await api.patch(`/v1/menuCombo/${id}`, formData, {
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     // headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data.data.combo;
 };
 
 const deleteCombo = async (id: string) => {
-<<<<<<< HEAD
   await api.delete(`/v1/combo/${id}`);
-=======
-  await api.delete(`/v1/menuCombo/${id}`);
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
 };
 
 const toggleComboActive = async (
   id: string
 ): Promise<{ isActive: boolean }> => {
-<<<<<<< HEAD
   const { data } = await api.patch(`/v1/combo/${id}/toggle-active`);
-=======
-  const { data } = await api.patch(`/v1/menuCombo/${id}/toggle-active`);
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data;
 };
 
@@ -187,11 +159,7 @@ const updateBranchOverride = async ({
   overrideData: BranchOverrideInput;
 }): Promise<Combo> => {
   const { data } = await api.patch(
-<<<<<<< HEAD
     `/v1/combo/${comboId}/branch-override`,
-=======
-    `/v1/menuCombo/${comboId}/branch-override`,
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
     overrideData
   );
   return data.data.combo;
@@ -200,11 +168,7 @@ const updateBranchOverride = async ({
 const toggleBranchActive = async (
   comboId: string
 ): Promise<{ isActive: boolean }> => {
-<<<<<<< HEAD
   const { data } = await api.patch(`/v1/combo/${comboId}/branch-toggle`);
-=======
-  const { data } = await api.patch(`/v1/menuCombo/${comboId}/branch-toggle`);
->>>>>>> e6a30dd025b29dafd404c32f005174dd65ee239c
   return data.data;
 };
 
