@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Clock, UtensilsCrossed, Banknote } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { formatOrderItemName } from '../lib/orderUtils';
+// import { formatOrderItemName } from '../lib/orderUtils';
 
 interface DineInCardProps {
   order: any;
@@ -70,7 +72,7 @@ const DineInCard: React.FC<DineInCardProps> = ({ order, onClick }) => {
     : '—';
 
   const itemCount = order.items?.length || 0;
-  const firstItem = order.items?.[0]?.name || '—';
+  const firstItem = order.items?.[0] ? formatOrderItemName(order.items[0]) : '—';
 
   return (
     <Card

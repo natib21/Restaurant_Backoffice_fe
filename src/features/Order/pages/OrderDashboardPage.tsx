@@ -21,7 +21,7 @@ const OrderDashboardPage: React.FC = () => {
   useEffect(() => {
     // Simulate API delay
     const timer = setTimeout(() => {
-      dispatch(setOrders(mockOrders));
+      dispatch(setOrders(mockOrders as any));
     }, 800);
 
     return () => clearTimeout(timer);
@@ -32,7 +32,7 @@ const OrderDashboardPage: React.FC = () => {
   return (
     <div className="flex h-screen bg-background">
       {/* Left Sidebar */}
-      <OrderSidebar orders={mockOrders} isLoading={false} />
+      <OrderSidebar isOpen={true} />
 
       {/* Center */}
       <div className="flex-1 flex flex-col border-x">
@@ -68,7 +68,7 @@ const OrderDashboardPage: React.FC = () => {
       </div>
 
       {/* Right Panel */}
-      <OrderDetailsPanel order={selectedOrder} />
+      <OrderDetailsPanel orderId={selectedOrder?._id || ''} />
     </div>
   );
 };

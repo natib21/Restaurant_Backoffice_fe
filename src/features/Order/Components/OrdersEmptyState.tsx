@@ -6,22 +6,30 @@ interface OrdersEmptyStateProps {
   /** Optional custom icon - defaults vary by context */
   icon?: React.ReactNode;
   /** Main title */
-  title: string;
+  title?: string;
   /** Description below title */
-  description: string;
+  description?: string;
   /** Optional extra action or hint */
   action?: React.ReactNode;
   /** Variant for different contexts */
   variant?: 'active' | 'history' | 'delivery' | 'general';
+  /** Optional activeTab */
+  activeTab?: string;
 }
 
 const OrdersEmptyState: React.FC<OrdersEmptyStateProps> = ({
   icon,
-  title,
-  description,
+  title = 'No Orders Found',
+  description = 'There are currently no orders matching your selected filters.',
   action,
   variant = 'general',
+  activeTab,
 }) => {
+  const displayTitle =
+    title || (activeTab ? `No ${activeTab} orders` : 'No Orders Found');
+  const displayDescription =
+    description ||
+    'New orders will appear here automatically when placed by customers or staff.';
   // Default icons based on context
   const defaultIcons = {
     active: <Clock className="h-16 w-16 text-blue-500" />,
@@ -39,11 +47,11 @@ const OrdersEmptyState: React.FC<OrdersEmptyStateProps> = ({
       </div>
 
       <h2 className="text-2xl font-bold text-foreground mb-3 animate-in slide-in-from-bottom-4 duration-700 delay-100">
-        {title}
+        {displayTitle}
       </h2>
 
       <p className="text-muted-foreground max-w-md leading-relaxed animate-in slide-in-from-bottom-4 duration-700 delay-200">
-        {description}
+        {displayDescription}
       </p>
 
       {action && (

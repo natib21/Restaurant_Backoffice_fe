@@ -4,12 +4,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { type RootState, type AppDispatch } from '@/app/store';
 import { useSocket } from '@/lib/Socket';
 
-import { Wifi, WifiOff } from 'lucide-react';
 import {
   toggleSidebar,
   toggleTheme,
   setLanguage,
   setCurrentBranch,
+  toggleOrderSidebar,
 } from '../../components/Layout/layoutSlice';
 
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 import {
   Menu as MenuIcon,
@@ -47,6 +48,8 @@ import {
   User,
   Settings,
   Globe,
+  Clock,
+  ShoppingBag,
 } from 'lucide-react';
 
 import {
@@ -54,39 +57,110 @@ import {
   useLogoutMutation,
 } from '../../api/Queries/authQueries';
 import { useBranchesQuery } from '../../api/Queries/branchQueries';
+import { useSubscriptionStatusQuery } from '../../api/Queries/subscriptionQueries'; // ← added
 import RightSideModal from '@/components/ui/RightSideModal';
 import { Link } from 'react-router-dom';
+import { useTranslation, setAppLanguage, type Language } from '@/locales/i18n';
 
 type OrderType = 'dine-in' | 'takeaway' | 'delivery';
 
 const Header: React.FC = () => {
+  const { t: tCommon } = useTranslation('common');
+  const { t: tOrders } = useTranslation('orders');
+  const { t: tAuth } = useTranslation('auth');
+  const { t: tBranch } = useTranslation('branch');
+  const { t: tSettings } = useTranslation('merchantSettings');
+  const { i18n } = useTranslation();
+
   const dispatch = useDispatch<AppDispatch>();
-  const { darkMode, language, currentBranchId } = useSelector(
+  const { darkMode, currentBranchId, orderSidebarOpen } = useSelector(
     (state: RootState) => state.ui
   );
+  const currentLang = (i18n.language || 'en') as Language;
+
   const socket = useSocket();
-  console.log(socket ? 'Socket is available in Header' : 'No socket in Header');
   const [isConnected, setIsConnected] = useState(false);
   const { data: user } = useGetMeQuery();
-  const { data: branches = [], isLoading: branchesLoading } =
-    useBranchesQuery();
+  const { data: branches = [], isLoading: branchesLoading } = useBranchesQuery();
   const logoutMutation = useLogoutMutation();
 
+  // ---- Subscription / Trial data ----
+  const { data: subResponse } = useSubscriptionStatusQuery();
+  const subscription =
+    (subResponse as any)?.subscription ??
+    (subResponse as any)?.data?.subscription ??
+    subResponse;
+
+  const isTrial = Boolean(subscription?.isTrial);
+  const daysRemaining = subscription?.daysRemaining ?? null;
+  const trialEndDate = subscription?.trialEndDate || subscription?.endDate;
+
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
-  const [selectedOrderType, setSelectedOrderType] = useState<OrderType | null>(
-    null
-  );
+  const [selectedOrderType, setSelectedOrderType] = useState<OrderType | null>(null);
+
+
+  // ---------- LIVE COUNTDOWN ----------
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    totalMs: 0,
+  });
+
+  useEffect(() => {
+    if (!trialEndDate) return;
+
+    const updateCountdown = () => {
+      const end = new Date(trialEndDate).getTime();
+      const now = Date.now();
+      const totalMs = Math.max(0, end - now);
+
+      const days = Math.floor(totalMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((totalMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((totalMs % (1000 * 60)) / 1000);
+
+      setTimeLeft({ days, hours, minutes, seconds, totalMs });
+    };
+
+    updateCountdown(); // run immediately
+    const interval = setInterval(updateCountdown, 1000); // tick every second
+
+    return () => clearInterval(interval);
+  }, [trialEndDate]);
+
+  // Format helpers
+  const isExpired = timeLeft.totalMs <= 0;
+  const isCritical = timeLeft.days <= 7;
+  const isWarning = timeLeft.days <= 30;
+
+  const countdownText = isExpired
+    ? 'Expired'
+    : timeLeft.days > 0
+    ? `${timeLeft.days}d ${timeLeft.hours}h ${timeLeft.minutes}m`
+    : `${timeLeft.hours}h ${timeLeft.minutes}m ${timeLeft.seconds}s`;
+
+  const mobileCountdownText = isExpired
+    ? 'Exp'
+    : timeLeft.days > 0
+    ? `${timeLeft.days}d`
+    : `${timeLeft.hours}h`;
 
   const currentBranch = useMemo(
     () => branches.find((b) => b._id === currentBranchId),
     [branches, currentBranchId]
   );
 
-  const languages = [
-    { code: 'EN', label: 'English' },
-    { code: 'AR', label: 'العربية' },
-    { code: 'FR', label: 'Français' },
+  const languages: { code: Language; label: string }[] = [
+    { code: 'en', label: 'English' },
+    { code: 'am', label: 'አማርኛ' },
   ];
+
+  const handleLanguageChange = (code: Language) => {
+    setAppLanguage(code);
+    dispatch(setLanguage(code.toUpperCase()));
+  };
 
   const handleBranchChange = (value: string) => {
     dispatch(setCurrentBranch(value === 'all' ? null : value));
@@ -119,11 +193,20 @@ const Header: React.FC = () => {
     setIsNewOrderOpen(false);
   };
 
+  // Helper to format the end date nicely
+  const formattedEndDate = trialEndDate
+    ? new Date(trialEndDate).toLocaleDateString(currentLang === 'am' ? 'am-ET' : 'en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
+
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/95 backdrop-blur-sm transition-colors">
         <div className="px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-4">
-          {/* LEFT: Sidebar & Logo & Mobile Branch Trigger */}
+          {/* LEFT */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="ghost"
@@ -170,11 +253,7 @@ const Header: React.FC = () => {
                       All Locations
                     </DropdownMenuRadioItem>
                     {branches.map((b) => (
-                      <DropdownMenuRadioItem
-                        key={b._id}
-                        value={b._id}
-                        className="text-xs"
-                      >
+                      <DropdownMenuRadioItem key={b._id} value={b._id} className="text-xs">
                         {b.name}
                       </DropdownMenuRadioItem>
                     ))}
@@ -184,8 +263,8 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          {/* CENTER: Desktop Branch Selector & Status */}
-          <div className="flex-1 max-w-sm lg:max-w-md hidden sm:flex items-center justify-center">
+          {/* CENTER */}
+          <div className="flex-1 max-w-sm lg:max-w-md hidden sm:flex items-center justify-center gap-3">
             {branchesLoading ? (
               <Skeleton className="h-9 w-full rounded-lg" />
             ) : (
@@ -220,7 +299,6 @@ const Header: React.FC = () => {
 
                 <div className="h-3.5 w-[1px] bg-border/80 shrink-0 mx-2" />
 
-                {/* DYNAMIC LIVE INDICATOR */}
                 <div className="flex items-center gap-1.5 px-1 shrink-0">
                   <span
                     className={`h-2 w-2 rounded-full shrink-0 ${
@@ -243,9 +321,64 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* RIGHT: Buttons & User Profile */}
+          {/* RIGHT */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* DESKTOP THEME & LANG (Hidden on Mobile) */}
+            {/* ========== TRIAL EXPIRATION COUNTER ========== */}
+           {isTrial && trialEndDate && (
+              <>
+                {/* Desktop */}
+                <Link to="/subscription">
+                  <Badge
+                    variant="outline"
+                    className={`
+                      hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium cursor-pointer
+                      transition-colors border font-mono
+                      ${
+                        isExpired
+                          ? 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300'
+                          : isCritical
+                          ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                          : isWarning
+                          ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
+                      }
+                    `}
+                    title={
+                      trialEndDate
+                        ? `Trial ends on ${new Date(trialEndDate).toLocaleString()}`
+                        : undefined
+                    }
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>
+                      {isExpired ? 'Trial Expired' : `Trial · ${countdownText}`}
+                    </span>
+                  </Badge>
+                </Link>
+
+                {/* Mobile */}
+                <Link to="/subscription" className="sm:hidden">
+                  <Badge
+                    variant="outline"
+                    className={`
+                      flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium font-mono
+                      ${
+                        isExpired || isCritical
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : isWarning
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }
+                    `}
+                  >
+                    <Clock className="h-3 w-3" />
+                    {mobileCountdownText}
+                  </Badge>
+                </Link>
+              </>
+            )}
+
+            {/* Theme & Language (desktop) */}
             <div className="hidden md:flex items-center gap-1 mr-1">
               <Button
                 variant="ghost"
@@ -269,15 +402,17 @@ const Header: React.FC = () => {
                     className="h-8 px-2.5 rounded-md font-medium text-xs text-muted-foreground hover:text-foreground gap-1.5"
                   >
                     <Globe className="h-3.5 w-3.5" />
-                    <span>{language}</span>
+                    <span className="uppercase font-bold">{currentLang}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-32 rounded-lg">
                   {languages.map((l) => (
                     <DropdownMenuItem
                       key={l.code}
-                      onClick={() => dispatch(setLanguage(l.code))}
-                      className="text-xs font-medium"
+                      onClick={() => handleLanguageChange(l.code)}
+                      className={`text-xs font-medium cursor-pointer ${
+                        currentLang === l.code ? 'bg-accent font-bold' : ''
+                      }`}
                     >
                       {l.label}
                     </DropdownMenuItem>
@@ -286,16 +421,33 @@ const Header: React.FC = () => {
               </DropdownMenu>
             </div>
 
-            {/* Primary CTA Button */}
+            {/* Orders Queue Sidebar Toggle */}
+            <Button
+              variant={orderSidebarOpen ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => dispatch(toggleOrderSidebar())}
+              className={cn(
+                'h-8 sm:h-9 px-2.5 sm:px-3 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors border shadow-xs',
+                orderSidebarOpen
+                  ? 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20'
+                  : 'border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              )}
+              title={orderSidebarOpen ? 'Hide Orders Queue' : 'Open Orders Queue'}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Orders Queue</span>
+            </Button>
+
+            {/* New Order button */}
             <Button
               onClick={() => setIsNewOrderOpen(true)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 sm:h-9 px-3 sm:px-3.5 rounded-md text-xs sm:text-sm font-medium flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98]"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">New Order</span>
+              <span className="hidden sm:inline">{tOrders('newOrder')}</span>
             </Button>
 
-            {/* User Dropdown Menu */}
+            {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -310,13 +462,15 @@ const Header: React.FC = () => {
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-60 rounded-lg shadow-lg border border-border p-1 mt-1.5" align="end" forceMount>
+              <DropdownMenuContent
+                className="w-60 rounded-lg shadow-lg border border-border p-1 mt-1.5"
+                align="end"
+                forceMount
+              >
                 <DropdownMenuLabel className="font-normal p-2">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-semibold leading-none text-foreground">
-                      {user
-                        ? `${user.firstName} ${user.lastName}`
-                        : 'System User'}
+                      {user ? `${user.firstName} ${user.lastName}` : 'System User'}
                     </p>
                     <p className="text-xs text-muted-foreground leading-none truncate">
                       {user?.email || 'admin@pos.com'}
@@ -330,9 +484,9 @@ const Header: React.FC = () => {
                       </Badge>
                       <Badge
                         variant="outline"
-                        className="text-[10px] font-medium px-1.5 py-0.2 rounded-md text-muted-foreground border-border"
+                        className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded-md text-muted-foreground border-border"
                       >
-                        {language}
+                        {currentLang}
                       </Badge>
                     </div>
                   </div>
@@ -340,11 +494,11 @@ const Header: React.FC = () => {
 
                 <DropdownMenuSeparator className="-mx-1 my-1" />
 
-                {/* MOBILE THEME & LANG (Visible only on Mobile inside menu) */}
+                {/* Mobile theme/lang */}
                 <div className="md:hidden">
                   <div className="px-2 py-1.5 flex justify-between items-center">
                     <span className="text-xs font-medium text-muted-foreground">
-                      Appearance
+                      {tCommon('appearance')}
                     </span>
                     <Button
                       variant="outline"
@@ -361,15 +515,15 @@ const Header: React.FC = () => {
                   </div>
                   <div className="px-2 py-1.5 flex justify-between items-center">
                     <span className="text-xs font-medium text-muted-foreground">
-                      Language
+                      {tCommon('language')}
                     </span>
                     <div className="flex gap-1">
                       {languages.map((l) => (
                         <Button
                           key={l.code}
-                          variant={language === l.code ? 'secondary' : 'ghost'}
-                          className="h-6 px-1.5 text-[10px] font-medium rounded-md"
-                          onClick={() => dispatch(setLanguage(l.code))}
+                          variant={currentLang === l.code ? 'secondary' : 'ghost'}
+                          className="h-6 px-1.5 text-[10px] font-medium rounded-md uppercase font-bold"
+                          onClick={() => handleLanguageChange(l.code)}
                         >
                           {l.code}
                         </Button>
@@ -382,12 +536,12 @@ const Header: React.FC = () => {
                 <DropdownMenuGroup>
                   <DropdownMenuItem className="text-xs font-medium cursor-pointer rounded-md">
                     <User className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                    <span>My Profile</span>
+                    <span>{tAuth('myProfile')}</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="text-xs font-medium cursor-pointer rounded-md">
                     <Link to="/settings" className="flex items-center">
                       <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                      <span>Settings</span>
+                      <span>{tSettings('settings')}</span>
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -397,7 +551,7 @@ const Header: React.FC = () => {
                   onClick={handleLogout}
                 >
                   <LogOut className="mr-2 h-3.5 w-3.5" />
-                  <span>Log out</span>
+                  <span>{tAuth('logout')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

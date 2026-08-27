@@ -18,10 +18,32 @@ export interface MerchantDocument {
   uploadedAt: string;
 }
 
+export interface MerchantFeatures {
+  core?: {
+    menu?: { enabled: boolean };
+    tableManagement?: { enabled: boolean };
+    [key: string]: any;
+  };
+  optional?: {
+    orders?: { enabled: boolean };
+    inventory?: { enabled: boolean };
+    multiBranch?: { enabled: boolean };
+    telegram?: { enabled: boolean };
+    sales?: { enabled: boolean };
+    reports?: { enabled: boolean };
+    customerManagement?: { enabled: boolean };
+    deliveryManagement?: { enabled: boolean };
+    paymentIntegration?: { enabled: boolean };
+    restaurantWebsite?: { enabled: boolean };
+    [key: string]: any;
+  };
+}
+
 export interface Merchant {
   _id: string;
   businessName: string;
   ownerName: string;
+  slug?: string;
   phone: string;
   taxId: string;
   location: MerchantLocation;
@@ -30,16 +52,27 @@ export interface Merchant {
   coverImage?: string;
   documents?: MerchantDocument[];
   tinId: string;
-  licenseNumber: string; // Changed from taxId to tinId to match your schema
+  licenseNumber?: string; // Added
   tradeLicense?: {
-    // Added
     url: string;
     public_id?: string;
     verified?: boolean;
+    licenseNumber?: string;
   };
+  trialDaysLeft?: number;
+  trialExpiresAt?: string;
+  hasActiveAccess?: boolean;
+  isSubscriptionActive?: boolean;
+  features?: MerchantFeatures;
+  mode?: string;
   status: 'pending' | 'approved' | 'suspended' | 'inactive';
   isActive: boolean;
-  subscriptionPlan?: 'free' | 'basic' | 'pro' | 'enterprise';
+  subscriptionPlan?: 'free' | 'basic' | 'pro' | 'enterprise' | 'trial' | string;
+  settings?: {
+    currency?: 'ETB' | 'USD' | string;
+    language?: 'en' | 'am' | 'both' | string;
+    [key: string]: any;
+  };
   owner: {
     fullName: string;
     gender: 'Male' | 'Female';
@@ -72,13 +105,22 @@ export interface StaffUser {
   lastName?: string;
   phone: string;
   email?: string;
-  role?: {
+  role?: string | {
     _id: string;
     name: string;
     description?: string;
   };
+  branch?: string | {
+    _id: string;
+    name: string;
+  };
+  createdAt?: string;
   isActive: boolean;
-  // may include more fields depending on population
+  hireDate?: string;
+  employmentStatus?: string;
+  employmentType?: string;
+  type?: string;
+  salary?: number | string;
 }
 
 /* ======================================================
@@ -162,15 +204,32 @@ const fetchMerchantStats = async (id: string): Promise<any> => {
 ====================================================== */
 
 const fetchMyMerchant = async (): Promise<Merchant> => {
-  // Many apps expose /me — adjust if your backend uses different path
-  const { data } = await api.get('/v1/merchant/me');
-  return data.data.merchant;
+  try {
+    const { data } = await api.get('/v1/merchant/me');
+    return data?.data?.merchant || data?.data?.user?.merchant || data?.merchant || data?.user?.merchant || data?.data;
+  } catch (err: any) {
+    try {
+      const { data } = await api.get('/v1/merchants/me');
+      return data?.data?.merchant || data?.data?.user?.merchant || data?.merchant || data?.user?.merchant || data?.data;
+    } catch {
+      const { data } = await api.get('/v1/users/me');
+      return data?.data?.user?.merchant || data?.data?.merchant || data?.merchant || data?.user?.merchant || data?.data;
+    }
+  }
 };
 
-const updateMe = async (payload: FormData): Promise<Merchant> => {
-  const { data } = await api.patch('/v1/merchant/me', payload);
-
-  return data.data.merchant;
+const updateMe = async (payload: any): Promise<Merchant> => {
+  let data;
+  if (payload instanceof FormData) {
+    const res = await api.patch('/v1/merchants/me', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    data = res.data;
+  } else {
+    const res = await api.patch('/v1/merchants/me', payload);
+    data = res.data;
+  }
+  return data?.data?.merchant || data?.merchant || data?.data;
 };
 
 const fetchMerchantStaff = async (): Promise<StaffUser[]> => {
@@ -294,12 +353,12 @@ export const useMyMerchantQuery = () =>
 export const useUpdateMeMutation = () => {
   const queryClient = useQueryClient();
 
-  // Change Partial<SettingsFormValues> to FormData
-  return useMutation<Merchant, AxiosError<any>, FormData>({
-    mutationFn: updateMe, // Ensure the 'updateMe' function handles FormData
+  return useMutation<Merchant, AxiosError<any>, any>({
+    mutationFn: updateMe,
     onSuccess: (updatedMerchant) => {
       queryClient.setQueryData(merchantKeys.profile(), updatedMerchant);
-      toast.success('Settings synchronized successfully');
+      queryClient.invalidateQueries({ queryKey: merchantKeys.profile() });
+      toast.success('Merchant settings updated successfully');
     },
     onError: (err) => {
       toast.error(err.response?.data?.message || 'Update failed');

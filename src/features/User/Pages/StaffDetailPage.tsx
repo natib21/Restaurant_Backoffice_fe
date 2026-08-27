@@ -159,7 +159,7 @@ const StaffDetailPage: React.FC = () => {
                     {staff.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                   <Badge variant="secondary">
-                    {staff.role?.name || 'Staff'}
+                    {(staff.role as any)?.name || (typeof staff.role === 'string' ? staff.role : 'Staff')}
                   </Badge>
                   <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
@@ -330,12 +330,12 @@ const StaffDetailPage: React.FC = () => {
                         Access Level
                       </p>
                       <p className="mt-0.5 font-medium">
-                        {staff.role?.name || 'Staff'}
+                        {(staff.role as any)?.name || (typeof staff.role === 'string' ? staff.role : 'Staff')}
                       </p>
                     </div>
                   </div>
 
-                  {staff.branch?.name && (
+                  {(staff.branch as any)?.name && (
                     <>
                       <div className="pt-2">
                         <div className="flex items-start gap-3">
@@ -345,7 +345,7 @@ const StaffDetailPage: React.FC = () => {
                               Branch
                             </p>
                             <p className="mt-0.5 font-medium">
-                              {staff.branch.name}
+                              {(staff.branch as any).name}
                             </p>
                           </div>
                         </div>
@@ -369,7 +369,7 @@ const StaffDetailPage: React.FC = () => {
         <StaffForm
           roles={[]} // ← pass real roles (you can fetch them here or from parent)
           branches={[]} // ← pass real branches
-          initialData={staff}
+          initialData={staff as any}
           onCancel={() => setEditModalOpen(false)}
           onSuccess={() => {
             setEditModalOpen(false);

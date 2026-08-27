@@ -45,11 +45,12 @@ export interface Branch {
 export interface CreateBranchInput {
   name: string;
   phone?: string;
-  city: string;
+  city?: string;
   subCity?: string;
   specificArea?: string;
   building?: string;
-  coordinates: [number, number];
+  coordinates?: [number, number];
+  location?: any;
   isMain?: boolean;
   settings?: Record<string, any>;
   branding?: Record<string, any>;
@@ -63,6 +64,7 @@ export interface UpdateBranchInput {
   specificArea?: string;
   building?: string;
   coordinates?: [number, number];
+  location?: any;
   isMain?: boolean;
   isActive?: boolean;
   settings?: Record<string, any>;
@@ -150,6 +152,49 @@ const inviteBranchManager = async (
 ): Promise<{ message: string }> => {
   const { data } = await api.post('/v1/branch/invite-manager', input);
   return data;
+};
+
+const suspendBranch = async ({
+  id,
+  reason,
+}: {
+  id: string;
+  reason?: string;
+}): Promise<Branch> => {
+  const { data } = await api.patch(`/v1/branch/${id}/suspend`, { reason });
+  return data.data.branch;
+};
+
+const activateBranch = async (id: string): Promise<Branch> => {
+  const { data } = await api.patch(`/v1/branch/${id}/activate`);
+  return data.data.branch;
+};
+
+const updateBranchFeatures = async ({
+  id,
+  features,
+}: {
+  id: string;
+  features: Record<string, boolean>;
+}): Promise<Branch> => {
+  const { data } = await api.patch(`/v1/branch/${id}/features`, { features });
+  return data.data.branch;
+};
+
+const assignMenuGroupToBranch = async ({
+  branchId,
+  menuGroupId,
+}: {
+  branchId: string;
+  menuGroupId: string;
+}): Promise<any> => {
+  const { data } = await api.post(`/v1/branch/${branchId}/menu-groups`, { menuGroupId });
+  return data.data;
+};
+
+const fetchBranchStaff = async (branchId: string): Promise<any[]> => {
+  const { data } = await api.get(`/v1/branch/${branchId}/staff`);
+  return data.data.staff;
 };
 
 /* ======================================================
@@ -276,3 +321,76 @@ export const useInviteBranchManagerMutation = () => {
     }
   );
 };
+
+/* ---------- Suspend Branch ---------- */
+export const useSuspendBranchMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Branch, AxiosError<any>, { id: string; reason?: string }>({
+    mutationFn: suspendBranch,
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
+      queryClient.setQueryData(branchKeys.detail(variables.id), data);
+      toast.success('Branch suspended successfully');
+    },
+    onError: (error: AxiosError<any>) => {
+      toast.error(error.response?.data?.message || 'Failed to suspend branch');
+    },
+  });
+};
+
+/* ---------- Activate Branch ---------- */
+export const useActivateBranchMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Branch, AxiosError<any>, string>({
+    mutationFn: activateBranch,
+    onSuccess: (data, id) => {
+      queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
+      queryClient.setQueryData(branchKeys.detail(id), data);
+      toast.success('Branch activated successfully');
+    },
+    onError: (error: AxiosError<any>) => {
+      toast.error(error.response?.data?.message || 'Failed to activate branch');
+    },
+  });
+};
+
+/* ---------- Update Branch Features ---------- */
+export const useUpdateBranchFeaturesMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Branch, AxiosError<any>, { id: string; features: Record<string, boolean> }>({
+    mutationFn: updateBranchFeatures,
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
+      queryClient.setQueryData(branchKeys.detail(variables.id), data);
+      toast.success('Branch features updated successfully');
+    },
+    onError: (error: AxiosError<any>) => {
+      toast.error(error.response?.data?.message || 'Failed to update branch features');
+    },
+  });
+};
+
+/* ---------- Assign Menu Group to Branch ---------- */
+export const useAssignMenuGroupToBranchMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, AxiosError<any>, { branchId: string; menuGroupId: string }>({
+    mutationFn: assignMenuGroupToBranch,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: branchKeys.detail(variables.branchId) });
+      toast.success('Menu group assigned to branch');
+    },
+    onError: (error: AxiosError<any>) => {
+      toast.error(error.response?.data?.message || 'Failed to assign menu group');
+    },
+  });
+};
+
+/* ---------- Branch Staff Query ---------- */
+export const useBranchStaffQuery = (branchId?: string) => {
+  return useQuery<any[], AxiosError<any>>({
+    queryKey: ['branchStaff', branchId],
+    queryFn: () => fetchBranchStaff(branchId as string),
+    enabled: !!branchId,
+  });
+};
+

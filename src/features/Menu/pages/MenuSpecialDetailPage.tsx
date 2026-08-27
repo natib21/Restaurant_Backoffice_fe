@@ -33,6 +33,7 @@ import {
   useDeleteComboMutation,
   useToggleComboAvailabilityMutation,
 } from '../../../api/Queries/comboQueries';
+import { getLocalizedName, getLocalizedDescription, extractLocalizedPair } from '../lib/localizationUtils';
 
 type ComboDetailPageProps = {
   comboId: string;
@@ -48,8 +49,12 @@ const ComboDetailPage: React.FC<ComboDetailPageProps> = ({
   const deleteMutation = useDeleteComboMutation();
   const toggleAvailabilityMutation = useToggleComboAvailabilityMutation();
 
+  const primaryName = combo ? getLocalizedName(combo, 'en', 'Special Offer') : '';
+  const amharicName = combo ? getLocalizedName(combo, 'am') : '';
+  const descPair = combo ? extractLocalizedPair(combo.description) : { en: '', am: '' };
+
   const handleDelete = async () => {
-    if (!confirm(`Delete "${combo?.name}" permanently?`)) return;
+    if (!confirm(`Delete "${primaryName}" permanently?`)) return;
     try {
       await deleteMutation.mutateAsync(comboId);
       toast.success('Special offer deleted successfully');
@@ -97,7 +102,7 @@ const ComboDetailPage: React.FC<ComboDetailPageProps> = ({
                   ? combo.image
                   : `/img/combo/${combo.image}`
               }
-              alt={combo.name}
+              alt={primaryName}
               className="h-full w-full object-cover transition-transform duration-1000 hover:scale-110"
             />
           ) : (
@@ -113,14 +118,19 @@ const ComboDetailPage: React.FC<ComboDetailPageProps> = ({
         <div className="p-6 space-y-8">
           {/* Header */}
           <div className="flex items-start justify-between">
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest">
                 <Layers className="h-3.5 w-3.5" />
                 Special Offer
               </div>
               <h1 className="text-3xl font-black tracking-tight">
-                {combo.name}
+                {primaryName}
               </h1>
+              {amharicName && amharicName !== primaryName && (
+                <p className="text-lg font-bold text-muted-foreground">
+                  {amharicName}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button onClick={onEdit} variant="outline">
@@ -137,10 +147,19 @@ const ComboDetailPage: React.FC<ComboDetailPageProps> = ({
             </div>
           </div>
 
-          {combo.description && (
-            <p className="text-base text-muted-foreground leading-relaxed italic border-l-4 border-primary/20 pl-4">
-              "{combo.description}"
-            </p>
+          {(descPair.en || descPair.am) && (
+            <div className="space-y-1 border-l-4 border-primary/30 pl-4 py-1">
+              {descPair.en && (
+                <p className="text-base text-muted-foreground leading-relaxed italic">
+                  "{descPair.en}"
+                </p>
+              )}
+              {descPair.am && (
+                <p className="text-sm text-muted-foreground/80 leading-relaxed">
+                  {descPair.am}
+                </p>
+              )}
+            </div>
           )}
 
           <Separator />
@@ -338,7 +357,7 @@ const ComboDetailPage: React.FC<ComboDetailPageProps> = ({
                       </div>
                       <div className="flex-1">
                         <p className="text-xl font-bold">
-                          {item.nameFallback || 'Unknown Item'}
+                          {getLocalizedName(item.menu || item.menuItem || item.nameFallback, 'en', 'Item')}
                         </p>
                         <p className="text-sm text-muted-foreground mt-1">
                           Quantity:{' '}

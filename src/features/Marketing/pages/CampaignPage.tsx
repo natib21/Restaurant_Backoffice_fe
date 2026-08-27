@@ -1,450 +1,835 @@
+// src/features/Marketing/pages/CampaignPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { Campaign, CampaignAudience } from '@/api/Queries/campaignQueries';
-import { 
-  useGetCampaignsList, 
-  useCreateCampaign, 
+import { useMyMerchantQuery } from '@/api/Queries/merchantQueries';
+import { useTelegramStatusQuery } from '@/api/Queries/telegramQueries';
+import {
+  useGetCampaignsList,
+  useGetCampaignDetails,
+  useCreateCampaign,
   usePreviewCampaignAudience,
   useSendCampaign,
-  useDeleteCampaign
+  useDeleteCampaign,
+  type Campaign,
+  type CampaignAudience,
 } from '@/api/Queries/campaignQueries';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Plus, 
-  Send, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Users, 
-  MessageSquare,
-  TrendingUp,
+import { useGetCustomersList } from '@/api/Queries/customerQueries';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+  Megaphone,
+  Plus,
+  Send,
+  Users,
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
   Clock,
-  CheckCircle,
-  AlertCircle,
-  Zap
+  Loader2,
+  Trash2,
+  Sparkles,
+  ExternalLink,
+  Tag,
+  RefreshCw,
+  Eye,
+  XCircle,
+  Image as ImageIcon,
+  Award,
+  ShoppingBag,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { toast } from 'sonner';
+import {
+  PageHeader,
+  DataCard,
+  FilterBar,
+  DataTable,
+  type ColumnDef,
+} from '@/components/Common';
 
-const CampaignPage: React.FC = () => {
+export const CampaignPage: React.FC = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
-  
-  // New campaign form
-  const [formData, setFormData] = useState({
-    name: '',
-    message: '',
-    imageUrl: '',
-    channels: ['in-app'] as string[],
-    audience: {
-      loyaltyTier: [],
-      minSpent: 0,
-      maxSpent: 0,
-    } as CampaignAudience,
-  });
-  
-  // API queries
-  const { data: campaignsData, isLoading, error, refetch } = useGetCampaignsList();
-  const createMutation = useCreateCampaign();
-  const sendMutation = useSendCampaign();
-  const deleteMutation = useDeleteCampaign();
-  const previewMutation = usePreviewCampaignAudience();
-  
-  const campaigns: Campaign[] = Array.isArray(campaignsData?.data?.campaigns) ? campaignsData.data.campaigns : [];
-  
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'sent': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'scheduled': return <Clock className="h-4 w-4 text-blue-500" />;
-      case 'draft': return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      default: return <AlertCircle className="h-4 w-4 text-gray-500" />;
-    }
+  const { data: merchantProfile } = useMyMerchantQuery();
+  const merchantId = merchantProfile?._id;
+
+  const { data: telegramStatus } = useTelegramStatusQuery(merchantId);
+  const isConnected = telegramStatus?.connected ?? false;
+  const isMarketingEnabled = telegramStatus?.settings?.marketingEnabled ?? true;
+
+  const { data: campaigns = [], isLoading: isListLoading, refetch: refetchCampaigns } = useGetCampaignsList();
+  const { data: customerData } = useGetCustomersList();
+
+  const createCampaignMutation = useCreateCampaign();
+  const previewAudienceMutation = usePreviewCampaignAudience();
+  const sendCampaignMutation = useSendCampaign();
+  const deleteCampaignMutation = useDeleteCampaign();
+
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Selected campaign detail view
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+  const { data: activeCampaignDetail } = useGetCampaignDetails(activeCampaignId);
+
+  // Composer Modal State
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [selectedTiers, setSelectedTiers] = useState<string[]>([]);
+  const [minTotalOrders, setMinTotalOrders] = useState<number | ''>('');
+  const [customTagsInput, setCustomTagsInput] = useState('');
+  const [previewSize, setPreviewSize] = useState<number | null>(null);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+
+  // Extract available tags from CRM customer data for auto-suggestions
+  const availableCrmTags = React.useMemo(() => {
+    const rawCustomers = customerData?.data?.customers || customerData?.data || [];
+    if (!Array.isArray(rawCustomers)) return [];
+    const tagSet = new Set<string>();
+    rawCustomers.forEach((c: any) => {
+      if (Array.isArray(c.tags)) {
+        c.tags.forEach((t: string) => tagSet.add(t));
+      }
+    });
+    return Array.from(tagSet);
+  }, [customerData]);
+
+  const toggleTier = (tier: string) => {
+    setSelectedTiers((prev) =>
+      prev.includes(tier) ? prev.filter((t) => t !== tier) : [...prev, tier]
+    );
+    setPreviewSize(null);
   };
-  
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'sent': return 'bg-green-100 text-green-800';
-      case 'scheduled': return 'bg-blue-100 text-blue-800';
-      case 'draft': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+
+  const buildAudiencePayload = (): CampaignAudience => {
+    const audience: CampaignAudience = {};
+    if (selectedTiers.length > 0) {
+      audience.loyaltyTier = selectedTiers;
     }
+    if (typeof minTotalOrders === 'number' && minTotalOrders > 0) {
+      audience.minTotalOrders = minTotalOrders;
+    }
+    const tags = customTagsInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (tags.length > 0) {
+      audience.tags = tags;
+    }
+    return audience;
   };
-  
-  const handleCreateCampaign = async () => {
-    if (!formData.name.trim() || !formData.message.trim()) {
-      toast({
-        title: "Error",
-        description: "Campaign name and message are required",
-        variant: "destructive",
-      });
-      return;
-    }
-    
+
+  const handlePreviewAudience = async () => {
     try {
-      await createMutation.mutateAsync({
-        ...formData,
-        audience: formData.audience.loyaltyTier?.length > 0 ? formData.audience : undefined,
+      let draftId = currentDraftId;
+      if (!draftId) {
+        draftId = await handleSaveDraft(true);
+      }
+      if (!draftId) return;
+
+      const size = await previewAudienceMutation.mutateAsync({
+        campaignId: draftId,
+        audience: buildAudiencePayload(),
       });
-      
-      setFormData({
-        name: '',
-        message: '',
-        imageUrl: '',
-        channels: ['in-app'],
-        audience: { loyaltyTier: [] },
-      });
-      setIsCreating(false);
-      refetch();
-      
-      toast({
-        title: "Success",
-        description: "Campaign created successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create campaign",
-        variant: "destructive",
-      });
+      setPreviewSize(size ?? 0);
+      toast.info(`Target audience estimated: ~${size ?? 0} customer(s) match`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to preview audience size');
     }
   };
-  
+
+  const handleSaveDraft = async (suppressToast = false): Promise<string | null> => {
+    if (!name.trim() || !message.trim()) {
+      toast.error('Campaign Name and Message Body are required');
+      return null;
+    }
+
+    try {
+      const payload = {
+        name: name.trim(),
+        message: message.trim(),
+        imageUrl: imageUrl.trim() || undefined,
+        audience: buildAudiencePayload(),
+      };
+
+      const result = await createCampaignMutation.mutateAsync(payload);
+      const newId = (result as any)?._id || (result as any)?.data?._id;
+      setCurrentDraftId(newId);
+
+      if (!suppressToast) {
+        toast.success('Campaign draft saved successfully');
+        setIsComposerOpen(false);
+        resetComposer();
+      }
+      refetchCampaigns();
+      return newId;
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to save campaign');
+      return null;
+    }
+  };
+
   const handleSendCampaign = async (campaignId: string) => {
     try {
-      await sendMutation.mutateAsync(campaignId);
-      refetch();
-      toast({
-        title: "Success",
-        description: "Campaign sent successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send campaign",
-        variant: "destructive",
-      });
+      await sendCampaignMutation.mutateAsync(campaignId);
+      toast.success('Campaign broadcast queued and started');
+      setIsComposerOpen(false);
+      resetComposer();
+      refetchCampaigns();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to send campaign');
     }
   };
-  
+
   const handleDeleteCampaign = async (campaignId: string) => {
-    if (!window.confirm('Are you sure you want to delete this campaign?')) return;
-    
     try {
-      await deleteMutation.mutateAsync(campaignId);
-      refetch();
-      toast({
-        title: "Success",
-        description: "Campaign deleted successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete campaign",
-        variant: "destructive",
-      });
+      await deleteCampaignMutation.mutateAsync(campaignId);
+      toast.success('Campaign record deleted');
+      refetchCampaigns();
+      if (activeCampaignId === campaignId) {
+        setActiveCampaignId(null);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to delete campaign');
     }
   };
-  
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error Loading Campaigns</CardTitle>
-            <CardDescription>
-              Unable to load campaign data. Please try again.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => refetch()}>
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
+
+  const resetComposer = () => {
+    setName('');
+    setMessage('');
+    setImageUrl('');
+    setSelectedTiers([]);
+    setMinTotalOrders('');
+    setCustomTagsInput('');
+    setPreviewSize(null);
+    setCurrentDraftId(null);
+  };
+
+  const filteredCampaigns = React.useMemo(() => {
+    return campaigns.filter((c) => {
+      const matchesSearch =
+        !searchQuery ||
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.message.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === 'all' || c.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [campaigns, searchQuery, statusFilter]);
+
+  const getStatusBadge = (status: Campaign['status']) => {
+    switch (status) {
+      case 'draft':
+        return <Badge variant="outline" className="text-[10px] font-semibold">Draft</Badge>;
+      case 'scheduled':
+        return <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold">Scheduled</Badge>;
+      case 'sending':
+        return (
+          <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30 text-[10px] font-bold flex items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Sending...
+          </Badge>
+        );
+      case 'sent':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Broadcast Sent
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 text-[10px] font-bold flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            Failed
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const columns: ColumnDef<Campaign>[] = [
+    {
+      id: 'name',
+      header: 'Campaign & Content',
+      sortable: true,
+      accessorKey: 'name',
+      cell: (campaign) => (
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <Megaphone className="h-4 w-4" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="font-bold text-xs text-slate-900 dark:text-white">
+              {campaign.name}
+            </p>
+            <p className="text-[11px] text-slate-500 line-clamp-1 max-w-sm">
+              {campaign.message}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'audience',
+      header: 'Target Audience',
+      cell: (campaign) => {
+        const audienceSize = campaign.stats?.audienceSize || campaign.stats?.totalRecipients || 0;
+        return (
+          <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
+            <Users className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+            <span>{audienceSize} customers</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'delivery',
+      header: 'Delivery Stats',
+      cell: (campaign) => {
+        const sentCount = campaign.stats?.sentCount || campaign.stats?.delivered || 0;
+        const failedCount = campaign.stats?.failedCount || 0;
+        return (
+          <div className="text-xs">
+            {campaign.status === 'sent' ? (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {sentCount} delivered {failedCount > 0 && <span className="text-rose-500 font-normal">({failedCount} failed)</span>}
+              </span>
+            ) : (
+              <span className="text-slate-400">—</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      sortable: true,
+      cell: (campaign) => (
+        <div className="text-xs text-slate-500 flex items-center gap-1">
+          <Clock className="h-3 w-3 text-slate-400" />
+          <span>
+            {campaign.sentAt
+              ? `Sent ${new Date(campaign.sentAt).toLocaleDateString()}`
+              : `Created ${new Date(campaign.createdAt).toLocaleDateString()}`}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      sortable: true,
+      cell: (campaign) => getStatusBadge(campaign.status),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: (campaign) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveCampaignId(campaign._id)}
+            className="h-8 text-xs gap-1 rounded-xl"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span>Details</span>
+          </Button>
+
+          {campaign.status === 'draft' && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  disabled={!isConnected || !isMarketingEnabled || sendCampaignMutation.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-1 rounded-xl font-bold"
+                >
+                  <Send className="h-3 w-3" />
+                  <span>Send</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-2xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-base font-bold">Send Campaign Broadcast?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-xs">
+                    This will broadcast "<b>{campaign.name}</b>" to all matching opted-in Telegram customers.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="gap-2">
+                  <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleSendCampaign(campaign._id)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold"
+                  >
+                    Confirm & Send
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-slate-400 hover:text-destructive hover:bg-rose-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="rounded-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-base font-bold">Delete Campaign?</AlertDialogTitle>
+                <AlertDialogDescription className="text-xs">
+                  Are you sure you want to delete this campaign record?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2">
+                <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleDeleteCampaign(campaign._id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl font-bold"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Marketing Campaigns</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create and manage customer marketing campaigns
-          </p>
-        </div>
-        
-        <Button className="gap-2" onClick={() => setIsCreating(true)}>
-          <Plus className="h-4 w-4" />
-          New Campaign
-        </Button>
-      </div>
-      
-      {/* Stats */}
-      {!isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Campaigns</p>
-                  <p className="text-2xl font-bold">{campaigns.length}</p>
-                </div>
-                <MessageSquare className="h-8 w-8 text-primary/60" />
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-16 space-y-6">
+      {/* Standard Page Header */}
+      <PageHeader
+        title="Promotions & Marketing"
+        subtitle="Broadcast promotional updates, special menu discounts, and announcements to your audience"
+        actionLabel="New Campaign"
+        actionIcon={<Plus className="h-4 w-4 stroke-[2.5]" />}
+        onAction={() => {
+          resetComposer();
+          setIsComposerOpen(true);
+        }}
+      />
+
+      <div className="px-4 sm:px-8 space-y-6 max-w-7xl mx-auto">
+        {/* Telegram Status Warning Banner */}
+        {!isConnected && (
+          <div className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Sent</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {campaigns.filter(c => c.status === 'sent').length}
-                  </p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Scheduled</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {campaigns.filter(c => c.status === 'scheduled').length}
-                  </p>
-                </div>
-                <Clock className="h-8 w-8 text-blue-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Drafts</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {campaigns.filter(c => c.status === 'draft').length}
-                  </p>
-                </div>
-                <AlertCircle className="h-8 w-8 text-yellow-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-      
-      {/* Create Campaign Form */}
-      {isCreating && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Campaign</CardTitle>
-            <CardDescription>
-              Set up a new marketing campaign to reach your customers
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Campaign Name</label>
-                <Input
-                  placeholder="e.g., Summer Promotion"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Image URL (Optional)</label>
-                <Input
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                />
+              <div>
+                <p className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                  Telegram Bot Not Connected
+                </p>
+                <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                  Connect your restaurant bot in Settings to enable direct broadcast messaging.
+                </p>
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Message</label>
-              <Textarea
-                placeholder="Write your campaign message here..."
-                value={formData.message}
-                onChange={(e) => setFormData({...formData, message: e.target.value})}
-                rows={4}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/settings?tab=telegram')}
+              className="text-xs h-8 rounded-xl font-semibold border-amber-500/30 text-amber-800 dark:text-amber-200"
+            >
+              <Bot className="h-3.5 w-3.5 mr-1.5" />
+              Configure Bot
+            </Button>
+          </div>
+        )}
+
+        {/* Standard DataCards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <DataCard
+            title="Total Campaigns"
+            value={isListLoading ? '...' : campaigns.length}
+            icon={<Megaphone className="h-5 w-5" />}
+            theme="primary"
+            subtitle="All marketing initiatives"
+            isLoading={isListLoading}
+          />
+
+          <DataCard
+            title="Delivered Broadcasts"
+            value={isListLoading ? '...' : campaigns.filter((c) => c.status === 'sent').length}
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            theme="emerald"
+            subtitle="Completed customer deliveries"
+            isLoading={isListLoading}
+          />
+
+          <DataCard
+            title="In-Progress Broadcasts"
+            value={isListLoading ? '...' : campaigns.filter((c) => c.status === 'sending').length}
+            icon={<Send className="h-5 w-5" />}
+            theme="sky"
+            subtitle="Currently dispatching messages"
+            isLoading={isListLoading}
+          />
+
+          <DataCard
+            title="Draft Queue"
+            value={isListLoading ? '...' : campaigns.filter((c) => c.status === 'draft').length}
+            icon={<Clock className="h-5 w-5" />}
+            theme="amber"
+            subtitle="Prepared for review and dispatch"
+            isLoading={isListLoading}
+          />
+        </div>
+
+        {/* Standard FilterBar */}
+        <FilterBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search campaigns by name or message contents..."
+          quickFilters={{
+            activeKey: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { key: 'all', label: 'All Campaigns', count: campaigns.length },
+              { key: 'sent', label: 'Delivered', count: campaigns.filter((c) => c.status === 'sent').length, icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+              { key: 'sending', label: 'Sending', count: campaigns.filter((c) => c.status === 'sending').length, icon: <Send className="h-3.5 w-3.5" /> },
+              { key: 'draft', label: 'Drafts', count: campaigns.filter((c) => c.status === 'draft').length, icon: <Clock className="h-3.5 w-3.5" /> },
+            ],
+          }}
+          onReset={() => {
+            setSearchQuery('');
+            setStatusFilter('all');
+          }}
+        />
+
+        {/* Standard DataTable */}
+        <DataTable
+          data={filteredCampaigns}
+          columns={columns}
+          isLoading={isListLoading}
+          paginated={true}
+          pageSize={10}
+          emptyIcon={<Megaphone className="h-8 w-8 text-slate-400" />}
+          emptyTitle="No campaigns found"
+          emptyDescription={
+            searchQuery
+              ? 'No campaigns match your filter criteria.'
+              : 'Create your first marketing broadcast to engage customers with promotions.'
+          }
+          emptyActionLabel="New Campaign"
+          onEmptyAction={() => {
+            resetComposer();
+            setIsComposerOpen(true);
+          }}
+          onRowClick={(campaign) => setActiveCampaignId(campaign._id)}
+        />
+      </div>
+
+      {/* Composer Modal Dialog */}
+      <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Sparkles className="h-4 w-4 text-emerald-500" />
+              Create Marketing Broadcast
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Compose promotional messages and target specific customer loyalty tiers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-name" className="text-xs font-semibold">Campaign Name *</Label>
+              <Input
+                id="comp-name"
+                placeholder="e.g. VIP Weekend 20% Discount"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setPreviewSize(null);
+                }}
+                className="h-9 text-xs rounded-xl"
               />
             </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Target Audience - Loyalty Tiers</label>
-              <div className="flex gap-2">
-                {['bronze', 'silver', 'gold'].map(tier => (
-                  <Button
-                    key={tier}
-                    variant={formData.audience.loyaltyTier?.includes(tier) ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => {
-                      const tiers = formData.audience.loyaltyTier || [];
-                      setFormData({
-                        ...formData,
-                        audience: {
-                          ...formData.audience,
-                          loyaltyTier: tiers.includes(tier)
-                            ? tiers.filter(t => t !== tier)
-                            : [...tiers, tier],
-                        },
-                      });
-                    }}
-                    className="capitalize"
-                  >
-                    {tier}
-                  </Button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Leave empty to target all customers
-              </p>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-msg" className="text-xs font-semibold">Message Content *</Label>
+              <Textarea
+                id="comp-msg"
+                placeholder="Write your promotional announcement..."
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setPreviewSize(null);
+                }}
+                rows={4}
+                className="text-xs rounded-xl"
+              />
             </div>
-          </CardContent>
-          <CardFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsCreating(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateCampaign}
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? 'Creating...' : 'Create Campaign'}
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-      
-      {/* Campaigns List */}
-      <div className="grid grid-cols-1 gap-4">
-        {isLoading ? (
-          [...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <Skeleton className="h-24 w-full" />
-              </CardContent>
-            </Card>
-          ))
-        ) : campaigns.length === 0 ? (
-          <Card className="text-center py-12">
-            <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/30" />
-            <h3 className="mt-4 text-lg font-medium">No campaigns yet</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Create your first marketing campaign to reach your customers
-            </p>
-            <Button className="mt-4 gap-2" onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4" />
-              Create Campaign
-            </Button>
-          </Card>
-        ) : (
-          campaigns.map(campaign => (
-            <Card 
-              key={campaign._id}
-              className={`hover:shadow-md transition-all ${
-                selectedCampaign === campaign._id ? 'ring-2 ring-primary' : ''
-              }`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold">{campaign.name}</h3>
-                      <Badge className={getStatusColor(campaign.status)} variant="outline">
-                        <span className="flex items-center gap-1">
-                          {getStatusIcon(campaign.status)}
-                          {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-                        </span>
-                      </Badge>
-                    </div>
-                    
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                      {campaign.message}
-                    </p>
-                    
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Users className="h-4 w-4" />
-                        <span>{campaign.stats?.totalRecipients || 0} recipients</span>
-                      </div>
-                      
-                      {campaign.stats?.delivered !== undefined && (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          <span>{campaign.stats.delivered} delivered</span>
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>{format(new Date(campaign.createdAt), 'MMM d, yyyy')}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col gap-2">
-                    {campaign.status === 'draft' && (
-                      <Button
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => handleSendCampaign(campaign._id)}
-                        disabled={sendMutation.isPending}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-img" className="text-xs font-semibold flex items-center gap-1">
+                <ImageIcon className="h-3.5 w-3.5 text-sky-500" />
+                Image URL (Optional)
+              </Label>
+              <Input
+                id="comp-img"
+                placeholder="https://images.unsplash.com/photo-..."
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="h-9 text-xs rounded-xl font-mono"
+              />
+            </div>
+
+            {/* Audience Targeting Card */}
+            <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                <Users className="h-4 w-4 text-sky-500" />
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Audience Targeting (Optional)</h4>
+                <span className="text-[10px] text-slate-500 ml-auto">
+                  Leave blank to reach all opted-in customers
+                </span>
+              </div>
+
+              {/* Loyalty Tier Selection */}
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold flex items-center gap-1">
+                  <Award className="h-3.5 w-3.5 text-amber-500" />
+                  Loyalty Tiers
+                </Label>
+                <div className="flex flex-wrap gap-4">
+                  {['bronze', 'silver', 'gold', 'platinum'].map((tier) => (
+                    <label key={tier} className="flex items-center gap-1.5 text-xs cursor-pointer capitalize">
+                      <Checkbox
+                        checked={selectedTiers.includes(tier)}
+                        onCheckedChange={() => toggleTier(tier)}
+                      />
+                      <span>{tier}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="comp-orders" className="text-[11px] font-semibold flex items-center gap-1">
+                    <ShoppingBag className="h-3.5 w-3.5 text-emerald-500" />
+                    Minimum Completed Orders
+                  </Label>
+                  <Input
+                    id="comp-orders"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 3"
+                    value={minTotalOrders}
+                    onChange={(e) => {
+                      setMinTotalOrders(e.target.value === '' ? '' : parseInt(e.target.value, 10));
+                      setPreviewSize(null);
+                    }}
+                    className="h-8 text-xs rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="comp-tags" className="text-[11px] font-semibold flex items-center gap-1">
+                    <Tag className="h-3.5 w-3.5 text-purple-500" />
+                    Customer Tags
+                  </Label>
+                  <Input
+                    id="comp-tags"
+                    placeholder="e.g. VIP, Regular, Vegan"
+                    value={customTagsInput}
+                    onChange={(e) => {
+                      setCustomTagsInput(e.target.value);
+                      setPreviewSize(null);
+                    }}
+                    className="h-8 text-xs rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {availableCrmTags.length > 0 && (
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-500 block mb-1">Quick Select Tags:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {availableCrmTags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="outline"
+                        onClick={() => {
+                          if (!customTagsInput.includes(tag)) {
+                            setCustomTagsInput((prev) => (prev ? `${prev}, ${tag}` : tag));
+                            setPreviewSize(null);
+                          }
+                        }}
+                        className="cursor-pointer text-[10px] hover:bg-sky-500/10 hover:text-sky-600 rounded-lg"
                       >
-                        <Send className="h-4 w-4" />
-                        Send
-                      </Button>
-                    )}
-                    
-                    {campaign.status !== 'sent' && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-2"
-                          onClick={() => navigate(`/campaigns/${campaign._id}`)}
-                        >
-                          <Edit className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-2 text-red-600 hover:text-red-700"
-                          onClick={() => handleDeleteCampaign(campaign._id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      </>
-                    )}
+                        + {tag}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+              )}
+            </div>
+
+            {/* Audience Preview Box */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-sky-500" />
+                <span>
+                  {previewSize !== null ? (
+                    <>
+                      Target Audience: <b className="text-sky-900 dark:text-sky-200">~{previewSize} customers match</b>
+                    </>
+                  ) : (
+                    <span className="text-slate-500">Click preview to count matching audience</span>
+                  )}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePreviewAudience}
+                disabled={previewAudienceMutation.isPending || !name.trim() || !message.trim()}
+                className="h-7 text-[11px] gap-1 rounded-lg"
+              >
+                {previewAudienceMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Eye className="h-3 w-3" />
+                )}
+                Preview Audience
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleSaveDraft(false)}
+              disabled={createCampaignMutation.isPending || !name.trim() || !message.trim()}
+              className="rounded-xl"
+            >
+              Save as Draft
+            </Button>
+
+            <Button
+              size="sm"
+              disabled={!name.trim() || !message.trim() || createCampaignMutation.isPending}
+              onClick={async () => {
+                const id = currentDraftId || (await handleSaveDraft(true));
+                if (id) {
+                  handleSendCampaign(id);
+                }
+              }}
+              className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Save & Send Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Campaign Detail Modal */}
+      {activeCampaignId && activeCampaignDetail && (
+        <Dialog open={!!activeCampaignId} onOpenChange={() => setActiveCampaignId(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold">
+                <Megaphone className="h-4 w-4 text-emerald-500" />
+                {activeCampaignDetail.name}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Campaign details, message content, and real-time delivery stats.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">Audience</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-white">
+                    {activeCampaignDetail.stats?.audienceSize || activeCampaignDetail.stats?.totalRecipients || 0}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-[10px] text-emerald-600 uppercase font-semibold block">Delivered</span>
+                  <span className="text-base font-bold text-emerald-600">
+                    {activeCampaignDetail.stats?.sentCount || activeCampaignDetail.stats?.delivered || 0}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                  <span className="text-[10px] text-rose-600 uppercase font-semibold block">Failed</span>
+                  <span className="text-base font-bold text-rose-600">
+                    {activeCampaignDetail.stats?.failedCount || 0}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Message Content:</span>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-200">
+                  {activeCampaignDetail.message}
+                </div>
+              </div>
+
+              {activeCampaignDetail.imageUrl && (
+                <div className="space-y-1">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Attached Image:</span>
+                  <img
+                    src={activeCampaignDetail.imageUrl}
+                    alt="Campaign header"
+                    className="max-h-48 rounded-xl border object-cover w-full"
+                  />
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => setActiveCampaignId(null)} className="rounded-xl">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

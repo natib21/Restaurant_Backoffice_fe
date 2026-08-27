@@ -1,6 +1,7 @@
 // src/features/Table/Pages/TableDetailPage.tsx
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Edit3,
   Trash2,
@@ -16,6 +17,11 @@ import {
   Store,
   ExternalLink,
   RefreshCw,
+  ArrowRightLeft,
+  Sparkles,
+  Clock,
+  Unlock,
+  UtensilsCrossed,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -28,20 +34,46 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 import {
   useGetTableQuery,
   useDeleteTableMutation,
   useRegenerateQRMutation,
+  useUpdateTableStatusMutation,
+  useChangeTableMutation,
+  useTablesQuery,
+  type Table,
 } from '../../../api/Queries/tableQueries';
+import {
+  useTableSessionQuery,
+  useFreeSessionMutation,
+} from '../../../api/Queries/sessionQueries';
 
 type TableDetailPageProps = {
   tableId: string;
   onEdit?: () => void;
+  onOpenPrintMenu?: (table: Table) => void;
 };
 
 const statusConfig: Record<
@@ -81,16 +113,72 @@ const statusConfig: Record<
 const TableDetailPage: React.FC<TableDetailPageProps> = ({
   tableId,
   onEdit,
+  onOpenPrintMenu,
 }) => {
+  const navigate = useNavigate();
   const {
     data: table,
     isLoading,
     isError,
     refetch,
   } = useGetTableQuery(tableId);
+
+  const { data: session, refetch: refetchSession } = useTableSessionQuery(tableId);
   const { mutateAsync: regenerateQR, isPending: isRegenerating } =
     useRegenerateQRMutation();
   const deleteMutation = useDeleteTableMutation();
+  const updateStatusMutation = useUpdateTableStatusMutation();
+  const changeTableMutation = useChangeTableMutation();
+  const freeSessionMutation = useFreeSessionMutation();
+
+  const branchId = typeof table?.branch === 'object' ? table.branch?._id : null;
+  const { data: allBranchTables = [] } = useTablesQuery(branchId);
+
+  // Table Change Modal State
+  const [isMoveOpen, setIsMoveOpen] = useState(false);
+  const [targetTableId, setTargetTableId] = useState('');
+  const [moveReason, setMoveReason] = useState('');
+
+  const handleStatusChange = async (newStatus: any) => {
+    try {
+      await updateStatusMutation.mutateAsync({ id: tableId, status: newStatus });
+      refetch();
+    } catch {
+      // Toast handled by mutation
+    }
+  };
+
+  const handleFreeSession = async () => {
+    if (!session?._id) return;
+    try {
+      await freeSessionMutation.mutateAsync(session._id);
+      refetch();
+      refetchSession();
+    } catch {
+      // Handled by mutation
+    }
+  };
+
+  const handleConfirmMoveTable = async () => {
+    if (!targetTableId) {
+      toast.error('Please select a destination table');
+      return;
+    }
+    try {
+      await changeTableMutation.mutateAsync({
+        fromTableId: tableId,
+        toTableId: targetTableId,
+        reason: moveReason || undefined,
+      });
+      setIsMoveOpen(false);
+      setTargetTableId('');
+      setMoveReason('');
+      refetch();
+      refetchSession();
+    } catch {
+      // Handled by mutation
+    }
+  };
 
   const handleDelete = async () => {
     if (
@@ -256,16 +344,83 @@ const TableDetailPage: React.FC<TableDetailPageProps> = ({
           <h1 className="text-7xl font-black tracking-tighter text-slate-900 dark:text-white">
             {table.tableNumber}
           </h1>
-          <div
-            className={`mt-4 flex items-center gap-2 px-4 py-1.5 rounded-full border ${status.bg} ${status.text} border-current/20`}
-          >
-            <StatusIcon className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">
-              {status.label}
-            </span>
+          <div className="mt-4 flex items-center gap-3">
+            <div
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full border ${status.bg} ${status.text} border-current/20`}
+            >
+              <StatusIcon className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-widest">
+                {status.label}
+              </span>
+            </div>
+
+            {/* Quick Status Selector */}
+            <Select
+              value={table.status}
+              onValueChange={handleStatusChange}
+              disabled={updateStatusMutation.isPending}
+            >
+              <SelectTrigger className="h-8 text-xs font-medium w-[150px] bg-background">
+                <SelectValue placeholder="Set Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="occupied">Occupied</SelectItem>
+                <SelectItem value="needs-cleaning">Needs Cleaning</SelectItem>
+                <SelectItem value="disabled">Disabled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
+
+      {/* ACTIVE SESSION CARD (IF ANY) */}
+      {session && (
+        <Card className="border-indigo-100 bg-indigo-50/40 dark:bg-indigo-950/20 dark:border-indigo-900/50">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+                  Active Table Session
+                </p>
+                {session.isAnonymous ? (
+                  <Badge variant="outline" className="text-[10px]">Guest Session</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">{session.customer?.fullName || 'Customer'}</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                Started: {new Date(session.startedAt).toLocaleTimeString()}
+                {session.totalSpent ? ` • Total: ${session.totalSpent} ETB` : ''}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 gap-1.5 flex-1 sm:flex-none border-indigo-200 hover:bg-indigo-100 dark:border-indigo-800"
+                onClick={() => setIsMoveOpen(true)}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Change Table
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="text-xs h-8 gap-1.5 flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={handleFreeSession}
+                disabled={freeSessionMutation.isPending}
+              >
+                <Unlock className="h-3.5 w-3.5" />
+                Free Table
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 2. Info Bento Grid */}
       <div className="grid grid-cols-2 gap-4">
@@ -375,15 +530,31 @@ const TableDetailPage: React.FC<TableDetailPageProps> = ({
 
             {/* Action Buttons */}
             <div className="mt-12 w-full flex flex-col sm:flex-row gap-3">
+              {/* Print Physical Menu */}
+              <Button
+                onClick={() => {
+                  if (onOpenPrintMenu) {
+                    onOpenPrintMenu(table);
+                  } else {
+                    navigate(`/tables/print-menu?tableId=${table._id}`);
+                  }
+                }}
+                variant="default"
+                className="h-12 justify-center bg-primary hover:bg-primary/90 text-white font-semibold transition-all active:scale-95 flex-1"
+              >
+                <UtensilsCrossed className="mr-2 h-4 w-4" />
+                Print Physical Menu
+              </Button>
+
               {/* Print Label */}
               <Button
                 onClick={handlePrintQR}
                 disabled={isRegenerating}
                 variant="outline"
-                className="h-12 justify-center border-slate-200 hover:bg-slate-50 dark:border-slate-800 font-semibold transition-all active:scale-95"
+                className="h-12 justify-center border-slate-200 hover:bg-slate-50 dark:border-slate-800 font-semibold transition-all active:scale-95 flex-1"
               >
                 <Printer className="mr-2 h-4 w-4" />
-                Print Label
+                Print Stand/Tent
               </Button>
 
               {/* Copy URL */}
@@ -406,8 +577,8 @@ const TableDetailPage: React.FC<TableDetailPageProps> = ({
               <Button
                 onClick={handleRegenerateQR}
                 disabled={isRegenerating}
-                variant="default"
-                className="h-12 w-12 sm:w-full justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white transition-all active:scale-95 p-0 mx-auto sm:mx-0"
+                variant="outline"
+                className="h-12 w-12 justify-center border-slate-200 hover:bg-slate-50 dark:border-slate-800 text-slate-700 dark:text-slate-200 transition-all active:scale-95 p-0"
                 title={
                   isRegenerating ? 'Generating new QR...' : 'Regenerate QR Code'
                 }
@@ -475,6 +646,67 @@ const TableDetailPage: React.FC<TableDetailPageProps> = ({
         <span className="font-mono uppercase">{tableId.slice(-8)}</span> • Last
         synced: Just now
       </p>
+
+      {/* Change / Move Table Dialog */}
+      <Dialog open={isMoveOpen} onOpenChange={setIsMoveOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-indigo-600" />
+              Transfer Table Session
+            </DialogTitle>
+            <DialogDescription>
+              Move customer and active orders from Table {table.tableNumber} to another available table.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Destination Table
+              </label>
+              <Select value={targetTableId} onValueChange={setTargetTableId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select target table" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allBranchTables
+                    .filter((t: any) => t._id !== tableId)
+                    .map((t: any) => (
+                      <SelectItem key={t._id} value={t._id}>
+                        Table {t.tableNumber} ({t.section || 'Main'} • {t.status})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Reason (Optional)
+              </label>
+              <Input
+                placeholder="e.g. Customer requested larger booth, AC issue"
+                value={moveReason}
+                onChange={(e) => setMoveReason(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMoveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleConfirmMoveTable}
+              disabled={changeTableMutation.isPending || !targetTableId}
+            >
+              {changeTableMutation.isPending ? 'Moving...' : 'Confirm Move'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

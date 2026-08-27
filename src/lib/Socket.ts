@@ -105,6 +105,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
           userId: user._id,
           permissions,
         } as SessionPayload);
+        newSocket.emit('join:branch', { branchId: currentBranchId });
       };
 
       const onConnect = () => {
@@ -147,6 +148,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
         userId: user._id,
         permissions,
       } as SessionPayload);
+      socketRef.current.emit('join:branch', { branchId: currentBranchId });
     }
    
 

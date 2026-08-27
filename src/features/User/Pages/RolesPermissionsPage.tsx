@@ -1,32 +1,32 @@
-import { useState } from 'react';
+// src/features/User/Pages/RolesPermissionsPage.tsx
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   Plus,
   MoreVertical,
   ShieldCheck,
+  ShieldAlert,
   Settings2,
   Eye,
   Lock,
+  CheckCircle2,
+  Copy,
+  ToggleLeft,
+  ToggleRight,
+  Shield,
+  KeyRound,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch'; // Import Switch component
 import { toast } from 'sonner';
 import RightSideModal from '@/components/ui/RightSideModal';
 
@@ -39,14 +39,32 @@ import { useMerchantTasksQuery } from '../../../api/Queries/taskQuery';
 
 import RoleForm from '../Components/RoleCreateForm';
 import RoleDetailView from '../Pages/RoleDetailPage';
+import {
+  enrichRoleData,
+  getMethodStyle,
+  PERMISSION_DOMAINS,
+} from '../lib/rolePermissionUtils';
+
+import { PageHeader, DataCard, type ColumnDef } from '@/components/Common';
+import { DataViewSystem } from '../../../components/Common/AdavanceFilter';
+import type {
+  QuickFilterOption,
+  AdvancedFilterField,
+  GroupByOption,
+  SortOption,
+  BulkAction,
+} from '../../../components/Common/AdavanceFilter';
+import { useTranslation } from '@/locales/i18n';
 
 type ModalMode = 'create' | 'detail' | 'edit';
 
-const RolesPermissionsPage = () => {
+const RolesPermissionsPage: React.FC = () => {
+  const { t } = useTranslation('team');
+  const { t: tCommon } = useTranslation('common');
   const navigate = useNavigate();
 
-  const { data: roles = [], isLoading: rolesLoading } = useMerchantRolesQuery();
-  const { data: tasks = [], isLoading: tasksLoading } = useMerchantTasksQuery();
+  const { data: rawRoles = [], isLoading: rolesLoading } = useMerchantRolesQuery();
+  const { data: rawTasks = [], isLoading: tasksLoading } = useMerchantTasksQuery();
 
   const deactivateMutation = useDeactivateMerchantRoleMutation();
   const activateMutation = useActivateMerchantRoleMutation();
@@ -54,20 +72,38 @@ const RolesPermissionsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('create');
   const [selectedRole, setSelectedRole] = useState<any>(null);
+  const [togglingRoleId, setTogglingRoleId] = useState<string | null>(null);
 
-  // --- Toggle Logic ---
+  // Enriched roles with computed metrics
+  const roles = useMemo(() => {
+    return (rawRoles || []).map(enrichRoleData);
+  }, [rawRoles]);
+
+  const tasks = useMemo(() => {
+    return rawTasks || [];
+  }, [rawTasks]);
+
+  // Summary Metrics
+  const activeRolesCount = useMemo(() => roles.filter((r) => r.isActive).length, [roles]);
+  const systemRolesCount = useMemo(() => roles.filter((r) => r.isSystemRole).length, [roles]);
+  const customRolesCount = useMemo(() => roles.filter((r) => !r.isSystemRole).length, [roles]);
+
+  // --- Toggle Active Logic ---
   const handleToggleActive = async (role: any) => {
     const isActivating = !role.isActive;
+    setTogglingRoleId(role._id);
     try {
       if (isActivating) {
         await activateMutation.mutateAsync(role._id);
-        toast.success(`${role.name} activated`);
+        toast.success(`Role "${role.name}" activated successfully`);
       } else {
         await deactivateMutation.mutateAsync(role._id);
-        toast.success(`${role.name} deactivated`);
+        toast.success(`Role "${role.name}" deactivated`);
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to update status');
+      toast.error(err?.message || 'Failed to update role status');
+    } finally {
+      setTogglingRoleId(null);
     }
   };
 
@@ -76,177 +112,614 @@ const RolesPermissionsPage = () => {
     setSelectedRole(null);
     setModalOpen(true);
   };
+
   const handleOpenDetail = (role: any) => {
     setModalMode('detail');
     setSelectedRole(role);
     setModalOpen(true);
   };
+
   const handleOpenEdit = (role: any) => {
     setModalMode('edit');
     setSelectedRole(role);
     setModalOpen(true);
   };
 
-  if (rolesLoading || tasksLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest">
-            Syncing Roles...
-          </p>
+  const handleDuplicateRole = (role: any) => {
+    setModalMode('create');
+    setSelectedRole({
+      ...role,
+      _id: undefined,
+      name: `${role.name}_COPY`,
+      description: `Copy of ${role.name}: ${role.description || ''}`,
+    });
+    setModalOpen(true);
+    toast.info(`Configuring clone of ${role.name}`);
+  };
+
+  // --- Advanced Filter Bar Configurations ---
+  const quickFilters: QuickFilterOption<any>[] = [
+    { key: 'all', label: 'All Roles', count: roles.length, icon: <Shield className="h-3.5 w-3.5" /> },
+    {
+      key: 'active',
+      label: 'Active',
+      count: activeRolesCount,
+      icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
+      matcher: (r) => r.isActive,
+    },
+    {
+      key: 'inactive',
+      label: 'Inactive',
+      count: roles.length - activeRolesCount,
+      matcher: (r) => !r.isActive,
+    },
+    {
+      key: 'system',
+      label: 'System Roles',
+      count: systemRolesCount,
+      icon: <Lock className="h-3.5 w-3.5 text-sky-500" />,
+      matcher: (r) => Boolean(r.isSystemRole),
+    },
+    {
+      key: 'custom',
+      label: 'Custom Created',
+      count: customRolesCount,
+      icon: <Settings2 className="h-3.5 w-3.5 text-amber-500" />,
+      matcher: (r) => !r.isSystemRole,
+    },
+    {
+      key: 'admin_tier',
+      label: 'Admin / High Access',
+      count: roles.filter((r) => r.accessTier === 'Admin / Full' || r.accessTier === 'Manager / High').length,
+      icon: <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />,
+      matcher: (r) => r.accessTier === 'Admin / Full' || r.accessTier === 'Manager / High',
+    },
+  ];
+
+  const filterFields: AdvancedFilterField[] = [
+    {
+      id: 'isActive',
+      label: 'Activation Status',
+      type: 'select',
+      options: [
+        { label: 'All Statuses', value: 'all' },
+        { label: 'Active Only', value: 'true' },
+        { label: 'Inactive Only', value: 'false' },
+      ],
+    },
+    {
+      id: 'isSystemRole',
+      label: 'Role Origin',
+      type: 'select',
+      options: [
+        { label: 'All Origins', value: 'all' },
+        { label: 'System Predefined', value: 'true' },
+        { label: 'Custom Merchant Role', value: 'false' },
+      ],
+    },
+    {
+      id: 'primaryDomain',
+      label: 'Primary Domain Focus',
+      type: 'select',
+      options: [
+        { label: 'All Domains', value: 'all' },
+        ...PERMISSION_DOMAINS.map((dom) => ({ label: dom, value: dom })),
+      ],
+    },
+    {
+      id: 'accessTier',
+      label: 'Security Tier',
+      type: 'select',
+      options: [
+        { label: 'All Security Tiers', value: 'all' },
+        { label: 'Admin / Full Access', value: 'Admin / Full' },
+        { label: 'Manager / High Access', value: 'Manager / High' },
+        { label: 'Operational Access', value: 'Operational' },
+        { label: 'View Only Access', value: 'View Only' },
+      ],
+    },
+    {
+      id: 'taskCount',
+      label: 'Capabilities Range',
+      type: 'number-range',
+      min: 0,
+      max: 100,
+      suffix: 'capabilities',
+    },
+  ];
+
+  const groupByOptions: GroupByOption<any>[] = [
+    {
+      id: 'status',
+      label: 'Activation Status',
+      accessor: (r) => (r.isActive ? 'Active Roles' : 'Deactivated Roles'),
+    },
+    {
+      id: 'origin',
+      label: 'Role Origin',
+      accessor: (r) => (r.isSystemRole ? 'System Built-in' : 'Custom Defined'),
+    },
+    {
+      id: 'domain',
+      label: 'Primary Domain',
+      accessor: (r) => r.primaryDomain || 'General',
+    },
+    {
+      id: 'tier',
+      label: 'Security Tier',
+      accessor: (r) => r.accessTier,
+    },
+  ];
+
+  const sortOptions: SortOption<any>[] = [
+    { id: 'name_asc', label: 'Role Name (A - Z)', field: 'name', direction: 'asc' },
+    { id: 'name_desc', label: 'Role Name (Z - A)', field: 'name', direction: 'desc' },
+    { id: 'tasks_desc', label: 'Most Capabilities', field: 'taskCount', direction: 'desc' },
+    { id: 'tasks_asc', label: 'Fewest Capabilities', field: 'taskCount', direction: 'asc' },
+    { id: 'created_desc', label: 'Recently Created', field: 'createdAt', direction: 'desc' },
+  ];
+
+  const bulkActions: BulkAction<any>[] = [
+    {
+      id: 'bulk_activate',
+      label: 'Activate Selected',
+      icon: <ToggleRight className="h-4 w-4 text-emerald-500" />,
+      onClick: async (selected, clear) => {
+        try {
+          for (const item of selected) {
+            if (!item.isActive) {
+              await activateMutation.mutateAsync(item._id);
+            }
+          }
+          toast.success(`Activated ${selected.length} roles`);
+          clear();
+        } catch {
+          toast.error('Failed to activate some roles');
+        }
+      },
+    },
+    {
+      id: 'bulk_deactivate',
+      label: 'Deactivate Selected',
+      variant: 'destructive',
+      icon: <ToggleLeft className="h-4 w-4" />,
+      onClick: async (selected, clear) => {
+        try {
+          for (const item of selected) {
+            if (item.isActive) {
+              await deactivateMutation.mutateAsync(item._id);
+            }
+          }
+          toast.success(`Deactivated ${selected.length} roles`);
+          clear();
+        } catch {
+          toast.error('Failed to deactivate some roles');
+        }
+      },
+    },
+  ];
+
+  // Table Columns
+  const columns: ColumnDef<any>[] = [
+    {
+      id: 'role',
+      header: 'Role Identity',
+      sortable: true,
+      accessorKey: 'name',
+      cell: (role) => (
+        <div className="flex items-center gap-3">
+          <div
+            className={`h-9 w-9 rounded-xl flex items-center justify-center border shrink-0 ${
+              role.isActive
+                ? 'bg-primary/10 text-primary border-primary/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            {role.isSystemRole ? (
+              <Lock className="h-4 w-4" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                {role.name}
+              </span>
+              {role.isSystemRole && (
+                <Badge
+                  variant="outline"
+                  className="text-[9px] font-bold uppercase tracking-wider bg-sky-50 dark:bg-sky-950/50 text-sky-600 border-sky-200 dark:border-sky-800"
+                >
+                  System
+                </Badge>
+              )}
+            </div>
+            <span className="text-[11px] text-slate-500 truncate max-w-xs">
+              {role.description || 'No description provided'}
+            </span>
+          </div>
         </div>
-      </div>
-    );
-  }
+      ),
+    },
+    {
+      id: 'capabilities',
+      header: 'Authorized Capabilities',
+      sortable: true,
+      accessorKey: 'taskCount',
+      cell: (role) => (
+        <div className="flex items-center gap-1.5 flex-wrap max-w-md">
+          <Badge
+            variant="outline"
+            className="text-[10px] font-mono font-bold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+          >
+            {role.taskCount} Methods
+          </Badge>
+          {role.tasks?.slice(0, 2).map((t: any) => (
+            <Badge
+              key={t._id || t.name}
+              variant="secondary"
+              className="text-[9px] font-medium max-w-[120px] truncate"
+            >
+              {t.name}
+            </Badge>
+          ))}
+          {role.taskCount > 2 && (
+            <span className="text-[10px] font-bold text-slate-400">
+              +{role.taskCount - 2} more
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'domain',
+      header: 'Primary Domain',
+      cell: (role) => (
+        <Badge
+          variant="secondary"
+          className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+        >
+          {role.primaryDomain}
+        </Badge>
+      ),
+    },
+    {
+      id: 'securityTier',
+      header: 'Security Level',
+      cell: (role) => {
+        let badgeColor = 'bg-slate-100 text-slate-600';
+        if (role.accessTier === 'Admin / Full') {
+          badgeColor = 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200';
+        } else if (role.accessTier === 'Manager / High') {
+          badgeColor = 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200';
+        } else if (role.accessTier === 'Operational') {
+          badgeColor = 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200';
+        }
+        return (
+          <Badge variant="outline" className={`text-[10px] font-bold ${badgeColor}`}>
+            {role.accessTier}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (role) => (
+        <div
+          className="flex items-center gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Switch
+            checked={role.isActive}
+            disabled={togglingRoleId === role._id}
+            onCheckedChange={() => handleToggleActive(role)}
+          />
+          <span
+            className={`text-[11px] font-bold uppercase tracking-wider ${
+              role.isActive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-slate-400'
+            }`}
+          >
+            {togglingRoleId === role._id
+              ? '...'
+              : role.isActive
+              ? 'Active'
+              : 'Inactive'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: (role) => (
+        <div
+          className="flex items-center justify-end"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                <MoreVertical className="h-4 w-4 text-slate-500" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 rounded-xl">
+              <DropdownMenuItem onClick={() => handleOpenDetail(role)} className="text-xs cursor-pointer">
+                <Eye className="mr-2 h-3.5 w-3.5 text-slate-500" /> View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenEdit(role)} className="text-xs cursor-pointer">
+                <Settings2 className="mr-2 h-3.5 w-3.5 text-slate-500" /> Edit Permissions
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDuplicateRole(role)} className="text-xs cursor-pointer">
+                <Copy className="mr-2 h-3.5 w-3.5 text-slate-500" /> Duplicate Role
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => handleToggleActive(role)}
+                className={`text-xs cursor-pointer font-semibold ${
+                  role.isActive ? 'text-amber-600' : 'text-emerald-600'
+                }`}
+              >
+                {role.isActive ? 'Deactivate Role' : 'Activate Role'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50/30 dark:bg-background">
-      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex h-16 items-center px-4 md:px-8 gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-xl font-black tracking-tight">
-              Roles & Permissions
-            </h1>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              Access Control Center
-            </p>
-          </div>
-          <Button onClick={handleOpenCreate} className="font-bold shadow-lg">
-            <Plus className="mr-2 h-4 w-4" /> Create Role
-          </Button>
-        </div>
-      </header>
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-16 space-y-6">
+      {/* Standard Unified Page Header */}
+      <PageHeader
+        title="Roles Management"
+        subtitle="Configure granular security policies, operational roles, and authorization levels"
+        actionLabel="Create New Role"
+        actionIcon={<Plus className="h-4 w-4 stroke-[2.5]" />}
+        onAction={handleOpenCreate}
+      />
 
-      <main className="mx-auto px-4 py-8 md:px-8">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {roles.map((role: any) => (
-            <Card
+      <div className="px-4 sm:px-8 space-y-6 max-w-7xl mx-auto">
+        {/* KPI Metric Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <DataCard
+            title="Total Security Roles"
+            value={rolesLoading ? '...' : roles.length}
+            icon={<Shield className="h-5 w-5" />}
+            theme="primary"
+            subtitle="Defined authorization profiles"
+            isLoading={rolesLoading}
+          />
+          <DataCard
+            title="Active Operational Roles"
+            value={rolesLoading ? '...' : activeRolesCount}
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            theme="emerald"
+            subtitle="Assignable to floor & office staff"
+            isLoading={rolesLoading}
+          />
+          <DataCard
+            title="System Predefined"
+            value={rolesLoading ? '...' : systemRolesCount}
+            icon={<Lock className="h-5 w-5" />}
+            theme="sky"
+            subtitle="Core immutable roles"
+            isLoading={rolesLoading}
+          />
+          <DataCard
+            title="API Capabilities"
+            value={tasksLoading ? '...' : tasks.length}
+            icon={<KeyRound className="h-5 w-5" />}
+            theme="amber"
+            subtitle="Available permissions"
+            isLoading={tasksLoading}
+          />
+        </div>
+
+        {/* Dedicated Pure DataViewSystem with Advanced Filter (No in-table tabs) */}
+        <DataViewSystem<any>
+          data={roles}
+          rowKey="_id"
+          entityName="roles"
+          columns={columns}
+          isLoading={rolesLoading}
+          supportedViewModes={['grid', 'table', 'kanban', 'list']}
+          defaultViewMode="grid"
+          searchPlaceholder="Search by role name, description, capabilities, or domains..."
+          searchFields={['name', 'description', 'primaryDomain', 'accessTier']}
+          quickFilters={quickFilters}
+          filterFields={filterFields}
+          groupByOptions={groupByOptions}
+          sortOptions={sortOptions}
+          defaultSortField="name"
+          presetStorageKey="merchant_roles_view"
+          selectable={true}
+          bulkActions={bulkActions}
+          onItemClick={(role) => handleOpenDetail(role)}
+          exportFileName="merchant_roles_export"
+          primaryAction={{
+            label: 'Create Role',
+            onClick: handleOpenCreate,
+          }}
+          emptyIcon={<Shield className="h-8 w-8 text-slate-400" />}
+          emptyTitle="No Roles Found"
+          emptyDescription="No roles match your current search and filter criteria. Adjust your filters or create a new role."
+          emptyActionLabel="Create New Role"
+          onEmptyAction={handleOpenCreate}
+          renderCustomCard={(role, isSelected, onSelect) => (
+            <div
               key={role._id}
-              className={`group overflow-hidden border shadow-sm hover:shadow-md transition-all cursor-pointer ${!role.isActive && 'opacity-70 saturate-50'}`}
               onClick={() => handleOpenDetail(role)}
+              className={`group relative rounded-2xl border bg-white dark:bg-slate-900 p-5 shadow-2xs hover:shadow-md hover:border-primary/50 transition-all duration-200 space-y-4 cursor-pointer flex flex-col justify-between ${
+                isSelected ? 'ring-2 ring-primary border-primary' : 'border-slate-200/80 dark:border-slate-800'
+              }`}
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`rounded-xl p-2.5 transition-colors ${role.isActive ? 'bg-primary/5 text-primary' : 'bg-muted text-muted-foreground'}`}
-                    >
-                      {role.isSystemRole ? (
-                        <Lock className="h-5 w-5" />
-                      ) : (
-                        <ShieldCheck className="h-5 w-5" />
+              {/* Card Top Row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div
+                    className={`h-11 w-11 rounded-2xl flex items-center justify-center border shadow-2xs shrink-0 ${
+                      role.isActive
+                        ? 'bg-primary/10 text-primary border-primary/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {role.isSystemRole ? (
+                      <Lock className="h-5 w-5" />
+                    ) : (
+                      <ShieldCheck className="h-5 w-5" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate group-hover:text-primary transition-colors">
+                        {role.name}
+                      </h3>
+                      {role.isSystemRole && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-sky-50 dark:bg-sky-950/60 text-sky-600 border-sky-200 dark:border-sky-800"
+                        >
+                          System
+                        </Badge>
                       )}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-bold">
-                          {role.name}
-                        </CardTitle>
-                        {role.isSystemRole && (
-                          <Badge className="text-[8px] h-4 uppercase">
-                            System
-                          </Badge>
-                        )}
-                      </div>
-                      <CardDescription className="text-xs line-clamp-1">
-                        {role.description}
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {/* TOGGLE SWITCH INSTEAD OF DROPDOWN ITEM */}
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-2"
-                  >
-                    <Switch
-                      checked={role.isActive}
-                      onCheckedChange={() => handleToggleActive(role)}
-                      disabled={
-                        activateMutation.isPending ||
-                        deactivateMutation.isPending
-                      }
-                    />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleOpenDetail(role)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" /> View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleOpenEdit(role)}>
-                          <Settings2 className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                      {role.description || 'Custom defined role'}
+                    </p>
                   </div>
                 </div>
-              </CardHeader>
 
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {role.tasks?.slice(0, 3).map((t: any) => (
-                    <Badge
-                      key={t._id}
-                      variant="secondary"
-                      className="text-[9px] bg-muted/50 font-medium"
-                    >
-                      {t.name}
-                    </Badge>
-                  ))}
-                  {role.tasks?.length > 3 && (
-                    <Badge variant="outline" className="text-[9px] font-bold">
-                      +{role.tasks.length - 3}
-                    </Badge>
+                {/* Actions & Switch */}
+                <div
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Switch
+                    checked={role.isActive}
+                    disabled={togglingRoleId === role._id}
+                    onCheckedChange={() => handleToggleActive(role)}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-900"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44 rounded-xl">
+                      <DropdownMenuItem
+                        onClick={() => handleOpenDetail(role)}
+                        className="text-xs cursor-pointer"
+                      >
+                        <Eye className="mr-2 h-3.5 w-3.5 text-slate-500" /> View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleOpenEdit(role)}
+                        className="text-xs cursor-pointer"
+                      >
+                        <Settings2 className="mr-2 h-3.5 w-3.5 text-slate-500" /> Edit Permissions
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDuplicateRole(role)}
+                        className="text-xs cursor-pointer"
+                      >
+                        <Copy className="mr-2 h-3.5 w-3.5 text-slate-500" /> Duplicate Role
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Capabilities Tags Preview */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                  <span>Capabilities Preview</span>
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  >
+                    {role.taskCount} Methods
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 min-h-[52px]">
+                  {role.tasks?.slice(0, 3).map((t: any) => {
+                    const style = getMethodStyle(t.method);
+                    return (
+                      <div
+                        key={t._id || t.name}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-medium bg-slate-50 dark:bg-slate-800/70 border-slate-200/70 dark:border-slate-800 truncate max-w-[170px]"
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${style.dotColor}`} />
+                        <span className="truncate">{t.name}</span>
+                      </div>
+                    );
+                  })}
+                  {role.taskCount > 3 && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800">
+                      +{role.taskCount - 3}
+                    </span>
+                  )}
+                  {role.taskCount === 0 && (
+                    <span className="text-xs text-slate-400 italic py-1">No permissions configured</span>
                   )}
                 </div>
-              </CardContent>
+              </div>
 
-              <CardFooter className="bg-muted/10 py-2.5 flex justify-between items-center border-t">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  {role.tasks?.length || 0} Capabilities
+              {/* Card Bottom Footer */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {role.primaryDomain}
                 </span>
+
                 <Badge
                   variant={role.isActive ? 'default' : 'secondary'}
-                  className={`text-[9px] h-4 uppercase ${role.isActive ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''}`}
+                  className={`text-[9px] font-bold uppercase ${
+                    role.isActive
+                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800'
+                      : ''
+                  }`}
                 >
                   {role.isActive ? 'Active' : 'Inactive'}
                 </Badge>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      </main>
+              </div>
+            </div>
+          )}
+        />
+      </div>
 
+      {/* Right Side Slide-over Modal for Create / Detail / Edit */}
       <RightSideModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         title={
           modalMode === 'create'
-            ? 'Create New Role'
+            ? 'Create Security Role'
             : modalMode === 'edit'
-              ? `Edit ${selectedRole?.name}`
-              : `${selectedRole?.name} Details`
+            ? `Edit Permissions — ${selectedRole?.name}`
+            : `${selectedRole?.name} Access Overview`
         }
         description={
           modalMode === 'create'
-            ? 'Define identity and permissions.'
+            ? 'Define role identity, operational scope, and authorized capabilities.'
             : modalMode === 'edit'
-              ? 'Update permissions.'
-              : 'Role overview.'
+            ? 'Update granular capabilities and endpoint authorizations.'
+            : 'Inspect authorized endpoints, assigned methods, and security tier.'
         }
       >
         {modalMode === 'create' && (
           <RoleForm
+            role={selectedRole}
             tasks={tasks}
             onSuccess={() => setModalOpen(false)}
             onCancel={() => setModalOpen(false)}

@@ -100,3 +100,85 @@
 *::-webkit-scrollbar {
   display: none; /* Chrome, Safari, new Edge */
 }
+
+/* Print Specific Rules for Physical Menu */
+@media print {
+  @page {
+    margin: 0mm !important;
+    size: auto;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app shell and navigation elements */
+  nav, header, aside, button, .print\\:hidden, [data-radix-collection-item], [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Hide everything except print containers */
+  body > *:not([data-radix-portal]) {
+    display: none !important;
+  }
+
+  [data-radix-portal] {
+    position: static !important;
+  }
+
+  [data-radix-portal] [role="dialog"] {
+    position: static !important;
+    transform: none !important;
+    max-width: none !important;
+    max-height: none !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  [data-radix-portal] [role="dialog"] > header,
+  [data-radix-portal] [role="dialog"] > div > div:first-child {
+    display: none !important;
+  }
+
+  #printable-menu-root {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .menu-print-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+}

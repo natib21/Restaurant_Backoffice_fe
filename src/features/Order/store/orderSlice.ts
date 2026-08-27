@@ -94,11 +94,12 @@ const orderSlice = createSlice({
       action: PayloadAction<{
         type: 'dine_in' | 'takeaway' | 'delivery';
         tableId?: string;
+        tableNumber?: string;
       }>
     ) {
       state.cart.orderType = action.payload.type;
       state.cart.tableId = action.payload.tableId || null;
-      state.cart.tableNumber = action.payload.tableNumber;
+      state.cart.tableNumber = action.payload.tableNumber || '';
     },
 
     addToCart(state, action: PayloadAction<Omit<CartItem, 'quantity'>>) {

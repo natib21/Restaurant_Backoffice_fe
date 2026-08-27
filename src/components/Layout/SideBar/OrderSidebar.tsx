@@ -31,6 +31,7 @@ import {
 } from '../../../api/Queries/orderQuery';
 import { useSocket } from '@/lib/Socket';
 import { useGetMeQuery } from '@/api/Queries/authQueries';
+import { useTranslation } from '@/locales/i18n';
 
 /* -------------------------------------------------------------------------- */
 /* Helper Component                                                           */
@@ -73,6 +74,8 @@ const FilterTab = ({
 /* Main Component                                                             */
 /* -------------------------------------------------------------------------- */
 export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
+  const { t } = useTranslation('orders');
+  const { t: tCommon } = useTranslation('common');
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -103,22 +106,6 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
   const ordersFromApi = useMemo(() => response?.orders || [], [response?.orders]);
 
   const { mutate: updateStatus } = useUpdateOrderStatusMutation();
-
-  // Robust ID Sync from URL
-  useEffect(() => {
-    const id = location.pathname.split('/').pop();
-    // Ensure we don't set 'orders' as the ID if the path is just /orders
-    if (id && id !== 'orders') {
-      setSelectedId(id);
-    }
-  }, [location.pathname]);
-
-  // Handle Window Resize
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Clear orders when branch changes
   useEffect(() => {
@@ -157,13 +144,19 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
     };
 
     socket.on('order:create', handleOrderEvent);
+    socket.on('order:created', handleOrderEvent);
+    socket.on('order:new', handleOrderEvent);
     socket.on('order-updated', handleOrderEvent);
     socket.on('order:status-updated', handleOrderEvent);
+    socket.on('order:status-changed', handleOrderEvent);
 
     return () => {
       socket.off('order:create', handleOrderEvent);
+      socket.off('order:created', handleOrderEvent);
+      socket.off('order:new', handleOrderEvent);
       socket.off('order-updated', handleOrderEvent);
       socket.off('order:status-updated', handleOrderEvent);
+      socket.off('order:status-changed', handleOrderEvent);
     };
   }, [socket, queryClient]);
 
@@ -195,7 +188,6 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
     });
   }, [orders, searchQuery, activeFilter, currentUser]);
 
-  /* ---------------------------------- Filter Logic ---------------------------------- */
   const counts = useMemo(
     () => ({
       all: orders.filter((o) => o.status !== 'cancelled').length,
@@ -211,6 +203,28 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
     }),
     [orders, currentUser]
   );
+
+  // Robust ID Sync from URL
+  useEffect(() => {
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const isOrdersPath = pathParts[0] === 'orders';
+    const subRoute = pathParts[1];
+    const isTabRoute = ['active', 'history', 'delivery', 'takeaway', 'dine-in'].includes(subRoute || '');
+    const isDetailRoute = isOrdersPath && subRoute && !isTabRoute;
+
+    if (isDetailRoute) {
+      setSelectedId(subRoute);
+    } else {
+      setSelectedId(null);
+    }
+  }, [location.pathname]);
+
+  // Handle Window Resize
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   /* ---------------------------------- Helpers ---------------------------------- */
   const getStatusStyles = (status: string) => {
@@ -271,7 +285,7 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
                   <ShoppingBag className="h-4 w-4" />
                 </div>
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                  Orders Queue
+                  {t('ordersQueue')}
                 </h2>
               </div>
               {isMobile && (
@@ -289,7 +303,7 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search table or ID..."
+                  placeholder={t('searchTableOrId')}
                   className="pl-8 h-8 text-xs bg-card border-border/80 focus-visible:ring-1 focus-visible:ring-ring rounded-md"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -301,35 +315,35 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
                   active={activeFilter === 'all'}
                   onClick={() => setActiveFilter('all')}
                   icon={<LayoutGrid size={13} />}
-                  label="All"
+                  label={t('all')}
                   count={counts.all}
                 />
                 <FilterTab
                   active={activeFilter === 'mine'}
                   onClick={() => setActiveFilter('mine')}
                   icon={<UserIcon size={13} />}
-                  label="Mine"
+                  label={t('mine')}
                   count={counts.mine}
                 />
                 <FilterTab
                   active={activeFilter === 'pending'}
                   onClick={() => setActiveFilter('pending')}
                   icon={<Timer size={13} />}
-                  label="New"
+                  label={t('new')}
                   count={counts.pending}
                 />
                 <FilterTab
                   active={activeFilter === 'served'}
                   onClick={() => setActiveFilter('served')}
                   icon={<Truck size={13} />}
-                  label="Served"
+                  label={t('served')}
                   count={counts.served}
                 />
                 <FilterTab
                   active={activeFilter === 'completed'}
                   onClick={() => setActiveFilter('completed')}
                   icon={<CheckCircle2 size={13} />}
-                  label="Done"
+                  label={t('done')}
                   count={counts.completed}
                 />
               </div>
@@ -358,16 +372,26 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
                     const isActive = selectedId === id;
 
                     return (
-                      <motion.button
+                      <motion.div
                         key={id}
                         layout
+                        role="button"
+                        tabIndex={0}
                         onClick={() => {
                           setSelectedId(id); // Immediate UI response
                           navigate(`/orders/${id}`);
                           if (isMobile) dispatch(setOrderSidebarOpen(false));
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedId(id);
+                            navigate(`/orders/${id}`);
+                            if (isMobile) dispatch(setOrderSidebarOpen(false));
+                          }
+                        }}
                         className={cn(
-                          'group relative p-3 text-left transition-colors border-l-2',
+                          'group relative p-3 text-left transition-colors border-l-2 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-primary',
                           isActive
                             ? 'bg-primary/5 border-l-primary'
                             : 'hover:bg-muted/40 border-l-transparent',
@@ -427,7 +451,7 @@ export const OrderSidebar: React.FC<{ isOpen: boolean }> = ({ isOpen }) => {
                               : 'Just now'}
                           </div>
                         </div>
-                      </motion.button>
+                      </motion.div>
                     );
                   })}
                 </div>

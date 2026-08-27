@@ -1,299 +1,464 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../../app/store';
 import {
   Truck,
   Loader2,
   CheckCircle2,
-  ReceiptText,
   MapPin,
+  Clock,
+  ChefHat,
+  PackageCheck,
+  Phone,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '@/lib/Socket';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import RightSideModal from '@/components/ui/RightSideModal';
 import OrdersEmptyState from '../Components/OrdersEmptyState';
-import { useCurrentBranchOrAllOrdersQuery } from '../../../api/Queries/orderQuery';
-import OrderCard from '../Components/OrderCard';
-import { cn } from '@/lib/utils';
+import {
+  useCurrentBranchOrAllOrdersQuery,
+  useUpdateOrderStatusMutation,
+} from '../../../api/Queries/orderQuery';
+import OrderCard, { type OrderCardData } from '../Components/OrderCard';
+import OrderKanbanBoard from '../Components/OrderKanbanBoard';
+import OrderTableView from '../Components/OrderTableView';
+import OrderFilterBar, { type OrderFilterState } from '../Components/OrderFilterBar';
+import PayOrderModal from '../Components/PayOrderModal';
+import CancelOrderModal from '../Components/CancelOrderModal';
+import AddItemsModal from '../Components/AddItemsModal';
+import OrderDetailsContent from '../Components/OrderDetailsPanel';
+import { playOrderSound } from '@/features/Order/lib/soundPlayer';
+import { toast } from 'sonner';
 
-const DeliveryManagementPage = () => {
+const DELIVERY_STATUS_OPTIONS = [
+  { key: 'all', label: 'All Deliveries' },
+  { key: 'pending', label: 'Pending Approval' },
+  { key: 'accepted', label: 'Accepted' },
+  { key: 'preparing', label: 'In Kitchen' },
+  { key: 'ready', label: 'Ready for Dispatch' },
+  { key: 'out_for_delivery', label: 'Out on Road' },
+  { key: 'delivered', label: 'Delivered' },
+  { key: 'completed', label: 'Completed' },
+];
+
+const DeliveryManagementPage: React.FC = () => {
   const socket = useSocket();
   const queryClient = useQueryClient();
   const currentBranchId = useSelector(
     (state: RootState) => state.ui.currentBranchId
   );
 
-  // Updated Tabs to reflect Delivery lifecycle
-  const [activeTab, setActiveTab] = useState<
-    'all' | 'pending' | 'preparing' | 'ready' | 'out_for_delivery' | 'completed'
-  >('all');
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(
-    null
-  );
-
   const { data: response, isLoading } =
     useCurrentBranchOrAllOrdersQuery(currentBranchId);
-  const [allOrders, setAllOrders] = useState<any[]>([]);
+  const [allOrders, setAllOrders] = useState<OrderCardData[]>([]);
+
+  // Modals
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [payingOrder, setPayingOrder] = useState<OrderCardData | null>(null);
+  const [cancelingOrder, setCancelingOrder] = useState<OrderCardData | null>(null);
+  const [addingItemsOrder, setAddingItemsOrder] = useState<OrderCardData | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (response?.orders) setAllOrders(response.orders);
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter State
+  const [filters, setFilters] = useState<OrderFilterState>({
+    search: '',
+    orderType: 'delivery',
+    status: 'all',
+    paymentStatus: 'all',
+    urgency: 'all',
+    sortBy: 'newest',
+    viewMode: 'grid',
+  });
+
+  const { mutate: updateStatus } = useUpdateOrderStatusMutation();
+
+  useEffect(() => {
+    if (response?.orders) {
+      setAllOrders(response.orders as any);
+    }
   }, [response]);
 
-  // Filter only Delivery type orders
+  // Socket subscription for real-time delivery events
+  useEffect(() => {
+    if (!socket) return;
+
+    if (currentBranchId) {
+      socket.emit('setup:session', { branchId: currentBranchId });
+      socket.emit('join:branch', { branchId: currentBranchId });
+    }
+
+    const handleOrderEvent = (payload: any) => {
+      const orderData = payload.order || payload;
+      const branchId = orderData.branch?._id || orderData.branch || payload.branchId;
+      if (currentBranchId && branchId && branchId !== currentBranchId) return;
+      if (orderData.orderType?.toLowerCase() !== 'delivery') return;
+
+      setAllOrders((prev) => {
+        const orderId = orderData._id || orderData.id || orderData.orderId;
+        const idx = prev.findIndex((o) => (o._id || o.id) === orderId);
+        if (idx !== -1) {
+          return prev.map((o, i) => (i === idx ? { ...o, ...orderData } : o));
+        }
+        return [{ ...orderData, isNew: true }, ...prev];
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    };
+
+    socket.on('order:create', handleOrderEvent);
+    socket.on('order:created', handleOrderEvent);
+    socket.on('order:new', handleOrderEvent);
+    socket.on('order-updated', handleOrderEvent);
+    socket.on('order:status-updated', handleOrderEvent);
+    socket.on('order:status-changed', handleOrderEvent);
+
+    return () => {
+      socket.off('order:create', handleOrderEvent);
+      socket.off('order:created', handleOrderEvent);
+      socket.off('order:new', handleOrderEvent);
+      socket.off('order-updated', handleOrderEvent);
+      socket.off('order:status-updated', handleOrderEvent);
+      socket.off('order:status-changed', handleOrderEvent);
+    };
+  }, [socket, currentBranchId, queryClient]);
+
+  // Filter only delivery orders
   const deliveries = useMemo(() => {
     return allOrders.filter(
       (order) => order.orderType?.toLowerCase() === 'delivery'
     );
   }, [allOrders]);
 
-  // Socket logic
-  useEffect(() => {
-    if (!socket) return;
-    const handleOrderEvent = (payload: any) => {
-      const branchId = payload.branch?._id || payload.branch;
-      if (currentBranchId && branchId !== currentBranchId) return;
-      if (payload.orderType?.toLowerCase() !== 'delivery') return;
-
-      setAllOrders((prev) => {
-        const orderId = payload._id || payload.id;
-        const idx = prev.findIndex((o) => (o._id || o.id) === orderId);
-        if (idx !== -1) {
-          return prev.map((o, i) => (i === idx ? { ...o, ...payload } : o));
-        }
-        return [{ ...payload, isNew: true }, ...prev];
-      });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-    };
-
-    socket.on('order:create', handleOrderEvent);
-    socket.on('order-updated', handleOrderEvent);
-    socket.on('order:status-updated', handleOrderEvent);
-
-    return () => {
-      socket.off('order:create', handleOrderEvent);
-      socket.off('order-updated', handleOrderEvent);
-      socket.off('order:status-updated', handleOrderEvent);
-    };
-  }, [socket, currentBranchId, queryClient]);
-
-  // Delivery-specific Stats
-  const stats = useMemo(
-    () => ({
+  // Delivery KPI stats
+  const stats = useMemo(() => {
+    const active = deliveries.filter(
+      (o) => o.status !== 'canceled' && o.status !== 'cancelled'
+    );
+    return {
+      total: active.length,
       pending: deliveries.filter((o) => o.status === 'pending').length,
-      preparing: deliveries.filter((o) => o.status === 'preparing').length,
-      onTheWay: deliveries.filter((o) => o.status === 'out_for_delivery')
-        .length,
+      kitchen: deliveries.filter((o) =>
+        ['accepted', 'preparing'].includes(o.status)
+      ).length,
+      readyToDispatch: deliveries.filter((o) => o.status === 'ready').length,
+      onTheWay: deliveries.filter((o) => o.status === 'out_for_delivery').length,
       completed: deliveries.filter((o) =>
         ['completed', 'delivered'].includes(o.status)
       ).length,
+      totalVolume: active.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+    };
+  }, [deliveries]);
+
+  const statusCounts = useMemo(
+    () => ({
+      pending: stats.pending,
+      accepted: deliveries.filter((o) => o.status === 'accepted').length,
+      preparing: deliveries.filter((o) => o.status === 'preparing').length,
+      ready: stats.readyToDispatch,
+      out_for_delivery: stats.onTheWay,
+      delivered: deliveries.filter((o) => o.status === 'delivered').length,
+      completed: deliveries.filter((o) => o.status === 'completed').length,
     }),
-    [deliveries]
+    [deliveries, stats]
   );
 
-  // Tab Filtering logic
+  // Transition Handlers
+  const handleAcceptOrder = useCallback(
+    (orderId: string) => updateStatus({ orderId, status: 'accepted' }),
+    [updateStatus]
+  );
+  const handlePrepareOrder = useCallback(
+    (orderId: string) => updateStatus({ orderId, status: 'preparing' }),
+    [updateStatus]
+  );
+  const handleReadyOrder = useCallback(
+    (orderId: string) => updateStatus({ orderId, status: 'ready' }),
+    [updateStatus]
+  );
+  const handleDispatchOrder = useCallback(
+    (orderId: string) => updateStatus({ orderId, status: 'out_for_delivery' }),
+    [updateStatus]
+  );
+  const handleDeliverOrder = useCallback(
+    (orderId: string) => updateStatus({ orderId, status: 'delivered' }),
+    [updateStatus]
+  );
+
+  // Filtered deliveries list
   const filteredDeliveries = useMemo(() => {
-    if (activeTab === 'all') return deliveries;
-    if (activeTab === 'completed')
-      return deliveries.filter((d) =>
-        ['completed', 'delivered'].includes(d.status)
-      );
-    return deliveries.filter((d) => d.status === activeTab);
-  }, [deliveries, activeTab]);
+    return deliveries
+      .filter((order) => {
+        if (filters.search) {
+          const q = filters.search.toLowerCase();
+          const matchesNum = order.orderNumber?.toLowerCase().includes(q);
+          const matchesCustomer = order.customerName?.toLowerCase().includes(q);
+          const matchesPhone = order.customerPhone?.toLowerCase().includes(q);
+          const matchesAddress = order.location?.formattedAddress
+            ?.toLowerCase()
+            .includes(q);
+          const matchesCity = order.location?.city?.toLowerCase().includes(q);
+          const matchesArea = order.location?.specificArea
+            ?.toLowerCase()
+            .includes(q);
 
-  const selectedDelivery = deliveries.find(
-    (d) => (d._id || d.id) === selectedDeliveryId
-  );
+          if (
+            !matchesNum &&
+            !matchesCustomer &&
+            !matchesPhone &&
+            !matchesAddress &&
+            !matchesCity &&
+            !matchesArea
+          ) {
+            return false;
+          }
+        }
 
-  if (isLoading && allOrders.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium">
-          Syncing delivery logistics...
-        </p>
-      </div>
-    );
-  }
+        if (filters.status !== 'all' && order.status !== filters.status) {
+          return false;
+        }
+
+        if (
+          filters.paymentStatus !== 'all' &&
+          order.paymentStatus !== filters.paymentStatus
+        ) {
+          return false;
+        }
+
+        if (filters.urgency === 'urgent') {
+          const elapsed =
+            (now - new Date(order.placedAt).getTime()) / (1000 * 60);
+          if (elapsed < 20) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (filters.sortBy === 'newest') {
+          return (
+            new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
+          );
+        }
+        if (filters.sortBy === 'oldest') {
+          return (
+            new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()
+          );
+        }
+        if (filters.sortBy === 'amount_high') {
+          return (b.totalAmount || 0) - (a.totalAmount || 0);
+        }
+        if (filters.sortBy === 'amount_low') {
+          return (a.totalAmount || 0) - (b.totalAmount || 0);
+        }
+        return 0;
+      });
+  }, [deliveries, filters]);
 
   return (
-    <div className="space-y-6 sm:space-y-8 bg-[#fafafa] min-h-screen">
-      {/* Header & Stats */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
+    <div className="space-y-5 pb-16">
+      {/* 1. Header & Live KPIs */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Truck className="h-5 w-5 text-primary" />
-            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              Logistics Control
+          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+            <Truck className="h-6 w-6 text-blue-600" />
+            Delivery Management
+            <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-mono font-bold bg-blue-500/10 text-blue-600 rounded-full">
+              {stats.total} Active
             </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight">
-            Deliveries
           </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Monitor dispatch queues, driver staging, and customer deliveries.
+          </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <StatCard
-            label="Pending"
-            value={stats.pending}
-            color="text-amber-600"
-            bg="bg-amber-50"
-          />
-          <StatCard
-            label="Preparing"
-            value={stats.preparing}
-            color="text-blue-600"
-            bg="bg-blue-50"
-          />
-          <StatCard
-            label="On Way"
-            value={stats.onTheWay}
-            color="text-purple-600"
-            bg="bg-purple-50"
-          />
-          <StatCard
-            label="History"
-            value={stats.completed}
-            color="text-emerald-600"
-            bg="bg-emerald-50"
-          />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['orders'] })}
+          className="text-xs h-9 gap-1.5"
+        >
+          <Clock className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* KPI Ribbon */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="border rounded-xl p-3.5 bg-card flex items-center justify-between shadow-2xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Ready to Dispatch
+            </p>
+            <p className="text-xl font-black text-emerald-600 mt-0.5">
+              {stats.readyToDispatch}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <PackageCheck className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="border rounded-xl p-3.5 bg-card flex items-center justify-between shadow-2xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Out on the Road
+            </p>
+            <p className="text-xl font-black text-cyan-600 mt-0.5">
+              {stats.onTheWay}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-600">
+            <Truck className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="border rounded-xl p-3.5 bg-card flex items-center justify-between shadow-2xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Kitchen Cooking
+            </p>
+            <p className="text-xl font-black text-orange-600 mt-0.5">
+              {stats.kitchen}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-orange-500/10 text-orange-600">
+            <ChefHat className="h-4 w-4" />
+          </div>
+        </div>
+
+        <div className="border rounded-xl p-3.5 bg-card flex items-center justify-between shadow-2xs">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Active Delivery Value
+            </p>
+            <p className="text-xl font-black text-foreground font-mono mt-0.5">
+              ETB {stats.totalVolume.toLocaleString()}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+            <TrendingUp className="h-4 w-4" />
+          </div>
         </div>
       </div>
 
-      {/* Responsive Filter Tabs */}
-      <div className="relative group">
-        <div className="flex gap-2 border-b pb-3 overflow-x-auto scrollbar-none sm:scrollbar-thin scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0">
-          {(
-            [
-              'all',
-              'pending',
-              'preparing',
-              'ready',
-              'out_for_delivery',
-              'completed',
-            ] as const
-          ).map((tab) => (
-            <Button
-              key={tab}
-              variant={activeTab === tab ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                'capitalize font-bold rounded-full px-5 py-2 whitespace-nowrap flex-shrink-0 transition-all text-xs sm:text-sm',
-                activeTab === tab
-                  ? 'shadow-md shadow-primary/20 scale-105'
-                  : 'text-muted-foreground hover:bg-muted'
-              )}
-            >
-              {tab.replace(/_/g, ' ')}
-            </Button>
-          ))}
+      {/* 2. Filter Bar */}
+      <OrderFilterBar
+        filters={filters}
+        onFilterChange={(updated) => setFilters((p) => ({ ...p, ...updated }))}
+        onResetFilters={() =>
+          setFilters({
+            search: '',
+            orderType: 'delivery',
+            status: 'all',
+            paymentStatus: 'all',
+            urgency: 'all',
+            sortBy: 'newest',
+            viewMode: filters.viewMode,
+          })
+        }
+        statusCounts={statusCounts}
+        totalCount={deliveries.length}
+        statusOptions={DELIVERY_STATUS_OPTIONS}
+        allowedTypes={['delivery']}
+      />
+
+      {/* 3. Delivery Views */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+            Loading Deliveries...
+          </p>
         </div>
-        <div className="absolute right-0 top-0 bottom-3 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none sm:hidden" />
-      </div>
-
-      {/* Deliveries Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
-        <AnimatePresence mode="popLayout">
-          {filteredDeliveries.map((delivery) => (
-            <motion.div
-              key={delivery._id || delivery.id}
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <OrderCard
-                order={delivery}
-                onClick={() =>
-                  setSelectedDeliveryId(delivery._id || delivery.id)
-                }
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {filteredDeliveries.length === 0 && (
-        <OrdersEmptyState
-          icon={
-            <CheckCircle2 className="h-14 w-14 sm:h-16 sm:w-16 text-emerald-500" />
-          }
-          title="Clear Dashboard"
-          description={`No ${activeTab !== 'all' ? activeTab.replace(/_/g, ' ') : ''} deliveries at the moment.`}
+      ) : filteredDeliveries.length === 0 ? (
+        <OrdersEmptyState activeTab={filters.status} />
+      ) : filters.viewMode === 'kanban' ? (
+        <OrderKanbanBoard
+          orders={filteredDeliveries}
+          onSelectOrder={(id) => setSelectedOrderId(id)}
+          onAcceptOrder={handleAcceptOrder}
+          onPrepareOrder={handlePrepareOrder}
+          onReadyOrder={handleReadyOrder}
+          onServeOrder={() => {}}
+          onDispatchOrder={handleDispatchOrder}
+          onDeliverOrder={handleDeliverOrder}
+          onPayOrder={(ord) => setPayingOrder(ord)}
+          onCancelOrder={(ord) => setCancelingOrder(ord)}
+          onAddItems={(ord) => setAddingItemsOrder(ord)}
         />
+      ) : filters.viewMode === 'table' ? (
+        <OrderTableView
+          orders={filteredDeliveries}
+          onSelectOrder={(id) => setSelectedOrderId(id)}
+          onAcceptOrder={handleAcceptOrder}
+          onPrepareOrder={handlePrepareOrder}
+          onReadyOrder={handleReadyOrder}
+          onServeOrder={() => {}}
+          onDispatchOrder={handleDispatchOrder}
+          onDeliverOrder={handleDeliverOrder}
+          onPayOrder={(ord) => setPayingOrder(ord)}
+          onCancelOrder={(ord) => setCancelingOrder(ord)}
+          onAddItems={(ord) => setAddingItemsOrder(ord)}
+        />
+      ) : (
+        /* Grid View */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredDeliveries.map((order) => (
+            <OrderCard
+              key={order._id || order.id}
+              order={order}
+              onClick={() => setSelectedOrderId(order._id || order.id || '')}
+              onAccept={handleAcceptOrder}
+              onPrepare={handlePrepareOrder}
+              onReady={handleReadyOrder}
+              onDispatch={handleDispatchOrder}
+              onDeliver={handleDeliverOrder}
+              onPay={(ord) => setPayingOrder(ord)}
+              onCancel={(ord) => setCancelingOrder(ord)}
+              onAddItems={(ord) => setAddingItemsOrder(ord)}
+            />
+          ))}
+        </div>
       )}
 
-      {/* Right Side Modal */}
+      {/* 4. Details Drawer */}
       <RightSideModal
-        title={
-          selectedDelivery
-            ? `Delivery #${selectedDelivery.orderNumber}`
-            : 'Loading...'
-        }
-        description="Delivery tracking and customer info"
-        open={!!selectedDeliveryId}
-        onOpenChange={(open) => !open && setSelectedDeliveryId(null)}
-        footer={
-          <div className="flex w-full gap-3 px-1">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => window.print()}
-            >
-              <ReceiptText className="mr-2 h-4 w-4" /> Receipt
-            </Button>
-            <Button className="flex-1 bg-slate-900">
-              <MapPin className="mr-2 h-4 w-4" /> Track Driver
-            </Button>
-          </div>
-        }
+        isOpen={!!selectedOrderId}
+        onClose={() => setSelectedOrderId(null)}
+        title="Delivery Order Details"
       >
-        <div className="space-y-6 py-4">
-          <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">
-              Customer Information
-            </h4>
-            <p className="font-bold text-lg">
-              {selectedDelivery?.customerName || 'Walk-in Customer'}
-            </p>
-            <p className="text-slate-600 font-medium">
-              {selectedDelivery?.customerPhone || 'No phone provided'}
-            </p>
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-start gap-2 text-sm text-slate-500">
-              <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>
-                {selectedDelivery?.deliveryAddress || 'Address details missing'}
-              </span>
-            </div>
-          </div>
-          {/* Add your OrderDetailsContent here or a simplified delivery view */}
-        </div>
+        {selectedOrderId && <OrderDetailsContent orderId={selectedOrderId} />}
       </RightSideModal>
+
+      {/* 5. Modals */}
+      <PayOrderModal
+        isOpen={!!payingOrder}
+        onClose={() => setPayingOrder(null)}
+        order={payingOrder as any}
+      />
+      <CancelOrderModal
+        isOpen={!!cancelingOrder}
+        onClose={() => setCancelingOrder(null)}
+        order={cancelingOrder as any}
+      />
+      <AddItemsModal
+        isOpen={!!addingItemsOrder}
+        onClose={() => setAddingItemsOrder(null)}
+        order={addingItemsOrder as any}
+      />
     </div>
   );
 };
-
-const StatCard = ({
-  label,
-  value,
-  color,
-  bg,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) => (
-  <div
-    className={`${bg} px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border min-w-[100px] sm:min-w-[110px] flex-shrink-0 transition-all hover:shadow-sm`}
-  >
-    <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-muted-foreground mb-0.5 sm:mb-1">
-      {label}
-    </p>
-    <p className={`text-xl sm:text-2xl font-black ${color}`}>{value}</p>
-  </div>
-);
 
 export default DeliveryManagementPage;

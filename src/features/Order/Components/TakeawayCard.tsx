@@ -6,6 +6,7 @@ import { Clock, User, Phone, Banknote, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { formatOrderItemName } from '../lib/orderUtils';
 interface TakeawayCardProps {
   order: any; // replace with your proper Order type when you have one
   onClick: () => void;
@@ -78,7 +79,7 @@ const TakeawayCard: React.FC<TakeawayCardProps> = ({ order, onClick }) => {
     : null;
 
   const itemCount = order.items?.length || 0;
-  const firstItem = order.items?.[0]?.name || '—';
+  const firstItem = order.items?.[0] ? formatOrderItemName(order.items[0]) : '—';
 
   return (
     <Card

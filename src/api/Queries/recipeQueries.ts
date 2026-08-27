@@ -24,6 +24,7 @@ export interface RecipeCreateRequest {
   name: string;
   yield: number; // Servings this recipe produces
   items: RecipeItem[];
+  isActive?: boolean;
 }
 
 export interface Recipe {

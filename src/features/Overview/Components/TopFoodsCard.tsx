@@ -13,6 +13,15 @@ interface Props {
 const formatETB = (n: number) =>
   new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', maximumFractionDigits: 0 }).format(n);
 
+const getFoodName = (name: any): string => {
+  if (!name) return 'Unnamed item';
+  if (typeof name === 'string') return name;
+  if (typeof name === 'object') {
+    return name.en || name.am || Object.values(name)[0]?.toString() || 'Unnamed item';
+  }
+  return String(name);
+};
+
 export const TopFoodsCard = ({ items, loading }: Props) => (
   <Card>
     <CardHeader className="pb-3">
@@ -41,39 +50,46 @@ export const TopFoodsCard = ({ items, loading }: Props) => (
         </div>
       ) : (
         <ul className="divide-y">
-          {items.map((item, idx) => (
-            <li key={item._id} className="px-6 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors">
-              {/* Rank badge */}
-              <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">
-                {idx + 1}
-              </span>
-              {/* Thumbnail */}
-              <div className="h-9 w-9 rounded-lg bg-muted shrink-0 overflow-hidden">
-                {item.image && item.image !== 'default-menu-item.jpg' ? (
-                  <img
-                    src={`/img/menu/${item.image}`}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center text-muted-foreground">
-                    <UtensilsCrossed className="h-4 w-4" />
-                  </div>
-                )}
-              </div>
-              {/* Name + revenue */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{item.name ?? 'Unnamed item'}</p>
-                <p className="text-xs text-muted-foreground">{formatETB(item.revenue)}</p>
-              </div>
-              {/* Quantity */}
-              <Badge variant="secondary" className="shrink-0 tabular-nums">
-                ×{item.quantity}
-              </Badge>
-            </li>
-          ))}
+          {items.map((item, idx) => {
+            const foodName = getFoodName(item.name);
+            return (
+              <li
+                key={typeof item._id === 'string' ? item._id : idx}
+                className="px-6 py-3 flex items-center gap-3 hover:bg-muted/40 transition-colors"
+              >
+                {/* Rank badge */}
+                <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">
+                  {idx + 1}
+                </span>
+                {/* Thumbnail */}
+                <div className="h-9 w-9 rounded-lg bg-muted shrink-0 overflow-hidden">
+                  {item.image && item.image !== 'default-menu-item.jpg' ? (
+                    <img
+                      src={`/img/menu/${item.image}`}
+                      alt={foodName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                      <UtensilsCrossed className="h-4 w-4" />
+                    </div>
+                  )}
+                </div>
+                {/* Name + revenue */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{foodName}</p>
+                  <p className="text-xs text-muted-foreground">{formatETB(item.revenue)}</p>
+                </div>
+                {/* Quantity */}
+                <Badge variant="secondary" className="shrink-0 tabular-nums">
+                  ×{item.quantity}
+                </Badge>
+              </li>
+            );
+          })}
         </ul>
       )}
     </CardContent>
   </Card>
 );
+

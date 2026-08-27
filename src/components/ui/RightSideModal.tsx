@@ -22,7 +22,9 @@ interface RightSideModalProps {
   trigger?: React.ReactNode;
   children: React.ReactNode;
   open?: boolean;
+  isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
   side?: 'left' | 'right';
   className?: string;
 
@@ -52,7 +54,9 @@ const RightSideModal: React.FC<RightSideModalProps> = ({
   trigger,
   children,
   open: controlledOpen,
+  isOpen: legacyIsOpen,
   onOpenChange,
+  onClose,
   side = 'right',
   className = '',
   footer,
@@ -60,8 +64,19 @@ const RightSideModal: React.FC<RightSideModalProps> = ({
   showCancel = true,
 }) => {
   const [internalOpen, setInternalOpen] = React.useState(false);
-  const isOpen = controlledOpen ?? internalOpen;
-  const setIsOpen = onOpenChange ?? setInternalOpen;
+  const effectiveOpen = controlledOpen ?? legacyIsOpen ?? internalOpen;
+  const handleOpenChange = (val: boolean) => {
+    if (!val && onClose) {
+      onClose();
+    }
+    if (onOpenChange) {
+      onOpenChange(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
+  const isOpen = effectiveOpen;
+  const setIsOpen = handleOpenChange;
   const { isTestMode } = useSelector((state: RootState) => state.ui);
 
   const currentBranchId = useSelector(

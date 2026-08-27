@@ -1,0 +1,21 @@
+{
+  "branches": "ቅርንጫፎች",
+  "branchesSubtitle": "የሬስቶራንትዎን ቦታዎች እና የቅርንጫፍ መረጃዎች ያስተዳድሩ።",
+  "addBranch": "ቅርንጫፍ ጨምር",
+  "registerNewBranch": "አዲስ ቅርንጫፍ ይመዝግቡ",
+  "editBranch": "ቅርንጫፍ አርም",
+  "branchName": "የቅርንጫፉ ስም",
+  "branchNamePlaceholder": "ምሳሌ፡ ቦሌ ቅርንጫፍ፣ ካዛንቺስ ቅርንጫፍ",
+  "totalLocations": "ጠቅላላ {count} ቦታዎች",
+  "online": "በስራ ላይ",
+  "offline": "ከስራ ውጪ",
+  "mainBranch": "ዋና ቅርንጫፍ",
+  "filterLocations": "ቦታዎችን ፈልግ...",
+  "noMatchingBranches": "ተመሳሳይ ቅርንጫፍ አልተገኘም",
+  "noMatchingBranchesDesc": "ከ \"{query}\" ጋር የሚመሳሰል ቦታ አልተገኘም። እባክዎ ሌላ ስም ወይም ከተማ ይሞክሩ።",
+  "clearSearch": "ፍለጋውን አጥፋ",
+
+  "branchRegisteredSuccess": "አዲሱ ቅርንጫፍ በተሳካ ሁኔታ ተመዝግቧል",
+  "branchUpdatedSuccess": "የቅርንጫፉ መረጃ በተሳካ ሁኔታ ተዘምኗል",
+  "branchDeletedSuccess": "ቅርንጫፉ በተሳካ ሁኔታ ተሰርዟል"
+}

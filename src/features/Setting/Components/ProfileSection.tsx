@@ -81,19 +81,21 @@ export function ProfileSection({ form, stepId }: ProfileSectionProps) {
                 name="slug"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL Slug *</FormLabel>
+                    <FormLabel>URL Slug (Read-only)</FormLabel>
                     <FormControl>
-                      <div className="flex shadow-sm rounded-md overflow-hidden">
-                        <span className="inline-flex items-center border border-r-0 bg-muted px-2 md:px-3 text-[10px] md:text-xs text-muted-foreground font-mono whitespace-nowrap">
+                      <div className="flex shadow-sm rounded-md overflow-hidden bg-slate-100">
+                        <span className="inline-flex items-center border border-r-0 bg-slate-200 px-2 md:px-3 text-[10px] md:text-xs text-slate-600 font-mono whitespace-nowrap">
                           menuroom.et/
                         </span>
                         <Input
-                          className="rounded-l-none bg-background font-mono text-xs"
+                          className="rounded-l-none bg-slate-100 font-mono text-xs cursor-not-allowed"
+                          readOnly
+                          disabled
                           {...field}
                         />
                       </div>
                     </FormControl>
-                    <FormMessage />
+                    <p className="text-[11px] text-slate-500 mt-1">Drives public QR code & web routing. Fixed once provisioned.</p>
                   </FormItem>
                 )}
               />

@@ -17,11 +17,13 @@ import { SidebarNavItems } from './SidebarNavItems';
 import { SidebarHeader } from './SidebarHeader';
 import { OrderSidebar } from './OrderSidebar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTranslation } from '@/locales/i18n';
 
 const SIDEBAR_WIDTH_EXPANDED = 256;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 
 const Sidebar: React.FC = () => {
+  const { t } = useTranslation('common');
   const dispatch = useDispatch<AppDispatch>();
   const { sidebarOpen, sidebarCollapsed, orderSidebarOpen } = useSelector(
     (state: RootState) => state.ui
@@ -173,8 +175,8 @@ const Sidebar: React.FC = () => {
               {isExpanded && (
                 <span className="truncate">
                   {user?.merchant?.publicWebsite
-                    ? 'Visit Live Website'
-                    : 'Website Not Set'}
+                    ? t('visitWebsite')
+                    : t('websiteNotSet')}
                 </span>
               )}
             </a>

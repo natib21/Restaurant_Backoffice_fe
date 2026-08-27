@@ -41,21 +41,27 @@ import {
 } from '../../../api/Queries/merchantQueries';
 import { useBranchesQuery } from '@/api/Queries/branchQueries';
 import { staffFormSchema, type StaffFormValues } from '../lib/StaffSchemas';
+import { useTranslation } from '@/locales/i18n';
 
 type StaffInviteFormProps = {
-  branches: { _id: string; name: string }[];
-  initialData?: StaffFormValues & { _id?: string };
+  branches?: { _id: string; name: string }[];
+  roles?: any[];
+  initialData?: any;
   onSuccess?: () => void;
   onCancel?: () => void;
   isLoading?: boolean;
+  onSubmit?: (values: any) => Promise<void> | void;
 };
 
 const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
   initialData,
   onSuccess,
   onCancel,
+  onSubmit: externalOnSubmit,
   isLoading: externalLoading = false,
 }) => {
+  const { t } = useTranslation('team');
+  const { t: tCommon } = useTranslation('common');
   const [showPassword, setShowPassword] = useState(false);
   const isEditMode = !!initialData?._id;
 
@@ -101,6 +107,10 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
 
   const onSubmit: SubmitHandler<StaffFormValues> = async (values) => {
     try {
+      if (externalOnSubmit) {
+        await externalOnSubmit(values);
+        return;
+      }
       const dataToSend = isEditMode
         ? {
             ...values,
@@ -113,7 +123,7 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
         await updateMutation.mutateAsync({
           id: initialData._id,
           ...dataToSend,
-        });
+        } as any);
       } else {
         await createMutation.mutateAsync(dataToSend);
       }
@@ -377,7 +387,7 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
             className="font-bold text-xs uppercase tracking-widest text-muted-foreground hover:bg-transparent hover:text-foreground"
             disabled={isMutating}
           >
-            Cancel
+            {tCommon('cancel')}
           </Button>
 
           <Button
@@ -387,14 +397,14 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
             disabled={isMutating || roles.length === 0}
           >
             {isMutating ? (
-              <span className="flex items-center gap-2">Processing...</span>
+              <span className="flex items-center gap-2">{t('submittingInvite')}</span>
             ) : isEditMode ? (
               <>
-                <Save className="mr-2 h-4 w-4" /> Save Changes
+                <Save className="mr-2 h-4 w-4" /> {tCommon('save')}
               </>
             ) : (
               <>
-                <UserPlus className="mr-2 h-4 w-4" /> Invite Staff
+                <UserPlus className="mr-2 h-4 w-4" /> {t('addMember')}
               </>
             )}
           </Button>

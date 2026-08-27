@@ -23,6 +23,7 @@ import {
 } from '../../store/orderSlice';
 import { useTablesQuery } from '@/api/Queries/tableQueries';
 import { cn } from '@/lib/utils';
+import { formatOrderItemName } from '../../lib/orderUtils';
 
 interface Props {
   onBack: () => void;
@@ -54,9 +55,10 @@ const MenuSelection: React.FC<Props> = ({ onBack, onReviewCart }) => {
       .map((item: any) => ({
         ...item,
         id: item.id || item._id, // Normalize id (critical for MongoDB)
+        displayName: formatOrderItemName(item.name || item),
       }))
       .filter((item: any) => {
-        const matchesSearch = item.name
+        const matchesSearch = item.displayName
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
         const matchesCategory =
@@ -180,7 +182,7 @@ const MenuSelection: React.FC<Props> = ({ onBack, onReviewCart }) => {
                         <img
                           src={item.image}
                           className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                          alt={item.name}
+                          alt={item.displayName}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300">
@@ -194,7 +196,7 @@ const MenuSelection: React.FC<Props> = ({ onBack, onReviewCart }) => {
                         {item.category}
                       </p>
                       <h4 className="font-bold text-[15px] text-slate-900 leading-tight truncate">
-                        {item.name}
+                        {item.displayName}
                       </h4>
                       <p className="text-primary font-black mt-1 text-lg">
                         {item.price.toLocaleString()}{' '}
@@ -217,7 +219,7 @@ const MenuSelection: React.FC<Props> = ({ onBack, onReviewCart }) => {
                             dispatch(
                               addToCart({
                                 id: item.id,
-                                name: item.name,
+                                name: item.displayName,
                                 price: Number(item.price),
                                 category: item.category,
                                 image: item.image,

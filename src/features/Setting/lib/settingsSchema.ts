@@ -61,6 +61,7 @@ export const formSchema = z.object({
     .optional()
     .default('#1A1A2E'),
   logo: z.any().optional(),
+  coverImage: z.any().optional(),
   // Settings - Added .default() so they are valid even if not in the UI
   currency: z.enum(['ETB', 'USD']).default('ETB'),
   taxRate: z.number().min(0).max(100).default(0),
@@ -109,6 +110,7 @@ export const defaultValues: SettingsFormValues = {
   licenseNumber: '',
   brandColor: '#1A1A2E', // Added
   logo: '',
+  coverImage: '',
   currency: 'ETB',
   taxRate: 15,
   serviceCharge: 0,

@@ -176,16 +176,80 @@ export function BrandingSection({ form }: { form: any }) {
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center bg-muted/5 hover:bg-muted/10 hover:border-primary/50 transition-all cursor-pointer group"
+                      className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center bg-muted/5 hover:bg-muted/10 hover:border-primary/50 transition-all cursor-pointer group"
                     >
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <ImageIcon className="h-6 w-6 text-primary" />
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <ImageIcon className="h-5 w-5 text-primary" />
                       </div>
-                      <p className="text-sm font-medium">
-                        Upload Business Logo
-                      </p>
+                      <p className="text-sm font-medium">Upload Business Logo</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Recommended square 512x512px
+                        Recommended square 300x300px
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* 3. Cover Image Upload */}
+        <FormField
+          control={form.control}
+          name="coverImage"
+          render={({ field }) => (
+            <FormItem>
+              <Label className="font-semibold mb-3 block">Cover Banner Image</Label>
+              <FormControl>
+                <div className="space-y-4">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    ref={(el) => {
+                      if (el) (window as any)._coverInput = el;
+                    }}
+                    onChange={(e) => handleImageChange(e, field.onChange)}
+                  />
+
+                  {field.value?.url ? (
+                    <div className="relative w-full h-40 rounded-xl border-2 border-dashed bg-muted/10 flex items-center justify-center overflow-hidden group transition-all">
+                      <img
+                        src={field.value.url}
+                        alt="Cover banner preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => (window as any)._coverInput?.click()}
+                        >
+                          Change Cover
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => field.onChange(null)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => (window as any)._coverInput?.click()}
+                      className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center bg-muted/5 hover:bg-muted/10 hover:border-primary/50 transition-all cursor-pointer group"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <ImageIcon className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-sm font-medium">Upload Cover Banner</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Recommended 1200x400px landscape image
                       </p>
                     </div>
                   )}

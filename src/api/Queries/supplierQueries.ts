@@ -17,6 +17,7 @@ export interface SupplierCreateRequest {
   paymentTerms: 'cash' | 'net_7' | 'net_15' | 'net_30' | 'net_60';
   leadTime?: number; // Days
   rating?: number; // 1-5
+  isActive?: boolean;
 }
 
 export interface Supplier {

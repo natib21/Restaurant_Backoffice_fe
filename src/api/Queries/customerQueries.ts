@@ -2,26 +2,58 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 // Customer Session Types
+export interface CustomerTelegramInfo {
+  chatId?: string;
+  firstName?: string;
+  id?: string;
+  lastInteractionAt?: string;
+  linked?: boolean;
+  linkedAt?: string;
+  optIn?: boolean;
+  optInAt?: string;
+  username?: string;
+  profilePic?: string;
+}
+
+export interface CustomerHistoryEntry {
+  _id: string;
+  id?: string;
+  action: string;
+  details: string;
+  addedAt: string;
+}
+
 export interface CustomerSession {
   _id: string;
   merchant: string;
-  branch: string;
+  branch?: string | null;
   fullName: string;
-  phone: string;
+  phone?: string;
   source: string;
-  currentTable?: string;
+  profileImage?: string;
+  rating?: number | { average: number; totalReviews: number };
+  history?: CustomerHistoryEntry[];
+  currentTable?: string | null;
   lastSeen: string;
+  createdAt?: string;
+  updatedAt?: string;
+  telegram?: CustomerTelegramInfo;
   loyalty: {
     points: number;
-    tier: 'bronze' | 'silver' | 'gold';
+    totalPointsEarned?: number;
+    totalPointsSpent?: number;
+    tier: 'bronze' | 'silver' | 'gold' | string;
+    joinedAt?: string;
     gifts: any[];
   };
   tags: string[];
   notes: string[];
+  favoriteMeals?: (string | { _id?: string; name: string; price?: number; category?: string; image?: string })[];
   stats: {
     totalOrders: number;
     totalSpent: number;
   };
+  orders?: any[];
 }
 
 export interface CustomerLoginRequest {
@@ -37,8 +69,9 @@ export interface CustomerGiftRequest {
 export interface StaffCustomerUpdateRequest {
   fullName?: string;
   phone?: string;
-  tags?: Array<{ value: string }>;
-  notes?: Array<{ text: string }>;
+  tags?: Array<{ value: string }> | string[];
+  notes?: Array<{ text: string }> | string[];
+  favoriteMeals?: (string | { _id?: string; name: string; price?: number; category?: string; image?: string })[];
   'loyalty.points'?: number;
   'loyalty.tier'?: 'bronze' | 'silver' | 'gold';
   'stats.totalOrders'?: number;
@@ -76,6 +109,7 @@ export interface CustomerResponse {
   seated?: boolean;
   data?: {
     customer?: CustomerSession;
+    customers?: CustomerSession[];
   };
   results?: number;
   stats?: {

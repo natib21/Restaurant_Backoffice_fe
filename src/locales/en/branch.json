@@ -1,0 +1,21 @@
+{
+  "branches": "Branches",
+  "branchesSubtitle": "Manage your restaurant physical locations and branch details.",
+  "addBranch": "Add Branch",
+  "registerNewBranch": "Register New Branch",
+  "editBranch": "Edit Branch",
+  "branchName": "Branch Name",
+  "branchNamePlaceholder": "e.g., Bole Branch, Kazanchis Outlet",
+  "totalLocations": "{count} Total Locations",
+  "online": "Online",
+  "offline": "Offline",
+  "mainBranch": "Main Branch",
+  "filterLocations": "Filter locations...",
+  "noMatchingBranches": "No matching branches",
+  "noMatchingBranchesDesc": "We couldn't find any locations matching \"{query}\". Try a different name or city.",
+  "clearSearch": "Clear Search",
+
+  "branchRegisteredSuccess": "New branch registered successfully",
+  "branchUpdatedSuccess": "Branch updated successfully",
+  "branchDeletedSuccess": "Branch deleted successfully"
+}

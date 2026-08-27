@@ -79,6 +79,36 @@ const regenerateQR = async (tableId: string): Promise<Table> => {
   return data.data.table;
 };
 
+export interface ChangeTablePayload {
+  fromTableId: string;
+  toTableId: string;
+  reason?: string;
+}
+
+export interface ChangeTableResponse {
+  status: string;
+  message: string;
+  data: {
+    session: any;
+  };
+}
+
+const changeTable = async (payload: ChangeTablePayload): Promise<ChangeTableResponse> => {
+  const { data } = await api.post('/v1/table/change', payload);
+  return data;
+};
+
+const updateTableStatus = async ({
+  id,
+  status,
+}: {
+  id: string;
+  status: Table['status'];
+}): Promise<Table> => {
+  const { data } = await api.patch(`/v1/table/${id}/status`, { status });
+  return data.data.table;
+};
+
 // ====================== SMART HOOK ======================
 
 /**
@@ -87,7 +117,7 @@ const regenerateQR = async (tableId: string): Promise<Table> => {
  * - branchId = string → GET /v1/table/branch/:id
  */
 export const useTablesQuery = (branchId: string | null) => {
-  return useQuery<Table[], AxiosError>({
+  return useQuery<Table[], AxiosError<any>>({
     queryKey: tableKeys.list(branchId),
     queryFn: () => {
       if (branchId) {
@@ -105,7 +135,7 @@ export const useGetTablesByBranchQuery = (branchId: string) =>
   useTablesQuery(branchId);
 
 export const useGetTableQuery = (id: string) => {
-  return useQuery<Table, AxiosError>({
+  return useQuery<Table, AxiosError<any>>({
     queryKey: tableKeys.detail(id),
     queryFn: () => fetchTable(id),
     enabled: !!id,
@@ -114,7 +144,7 @@ export const useGetTableQuery = (id: string) => {
 
 export const useCreateTableMutation = () => {
   const qc = useQueryClient();
-  return useMutation<Table, AxiosError, any>({
+  return useMutation<Table, AxiosError<any>, any>({
     mutationFn: createTable,
     onSuccess: (newTable) => {
       qc.invalidateQueries({ queryKey: tableKeys.lists() });
@@ -129,7 +159,7 @@ export const useCreateTableMutation = () => {
 
 export const useUpdateTableMutation = () => {
   const qc = useQueryClient();
-  return useMutation<Table, AxiosError, { id: string; body: any }>({
+  return useMutation<Table, AxiosError<any>, { id: string; body: any }>({
     mutationFn: updateTable,
     onSuccess: (updatedTable) => {
       qc.setQueryData(tableKeys.detail(updatedTable._id), updatedTable);
@@ -144,7 +174,7 @@ export const useUpdateTableMutation = () => {
 
 export const useDeleteTableMutation = () => {
   const qc = useQueryClient();
-  return useMutation<void, AxiosError, string>({
+  return useMutation<void, AxiosError<any>, string>({
     mutationFn: deleteTable,
     onSuccess: (_, id) => {
       qc.removeQueries({ queryKey: tableKeys.detail(id) });
@@ -159,7 +189,7 @@ export const useDeleteTableMutation = () => {
 
 export const useRegenerateQRMutation = () => {
   const qc = useQueryClient();
-  return useMutation<Table, AxiosError, string>({
+  return useMutation<Table, AxiosError<any>, string>({
     mutationFn: regenerateQR,
     onSuccess: (updatedTable) => {
       qc.setQueryData(tableKeys.detail(updatedTable._id), updatedTable);
@@ -173,3 +203,33 @@ export const useRegenerateQRMutation = () => {
     },
   });
 };
+
+export const useChangeTableMutation = () => {
+  const qc = useQueryClient();
+  return useMutation<ChangeTableResponse, AxiosError<any>, ChangeTablePayload>({
+    mutationFn: changeTable,
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: tableKeys.all });
+      toast.success(res.message || 'Table changed successfully');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to change table');
+    },
+  });
+};
+
+export const useUpdateTableStatusMutation = () => {
+  const qc = useQueryClient();
+  return useMutation<Table, AxiosError<any>, { id: string; status: Table['status'] }>({
+    mutationFn: updateTableStatus,
+    onSuccess: (updatedTable) => {
+      qc.setQueryData(tableKeys.detail(updatedTable._id), updatedTable);
+      qc.invalidateQueries({ queryKey: tableKeys.lists() });
+      toast.success(`Table status updated to ${updatedTable.status}`);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update table status');
+    },
+  });
+};
+

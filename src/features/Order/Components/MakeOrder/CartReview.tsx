@@ -22,6 +22,7 @@ import {
 } from '../../store/orderSlice';
 import { useTablesQuery } from '@/api/Queries/tableQueries';
 import { useCreateStaffOrderMutation } from '../../../../api/Queries/orderQuery';
+import { formatOrderItemName } from '../../lib/orderUtils';
 
 interface Props {
   onBack: () => void;
@@ -164,7 +165,7 @@ const CartReview: React.FC<Props> = ({ onBack, onClose }) => {
                 className="flex items-center gap-3 p-3 bg-card rounded-xl border shadow-sm"
               >
                 <div className="flex-1">
-                  <p className="font-bold text-sm">{item.name}</p>
+                  <p className="font-bold text-sm">{formatOrderItemName(item.name)}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.price.toLocaleString()} ETB
                   </p>

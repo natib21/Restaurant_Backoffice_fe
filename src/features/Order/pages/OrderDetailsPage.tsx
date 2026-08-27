@@ -1,5 +1,5 @@
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-
 import {
   ArrowLeft,
   Printer,
@@ -13,12 +13,29 @@ import {
   CreditCard,
   Wallet,
   ImageIcon,
+  Clock,
+  Utensils,
+  ShoppingBag,
+  Truck,
+  RotateCcw,
+  Sparkles,
+  ChefHat,
+  Receipt,
+  FileText,
+  Phone,
+  Layers,
+  Check,
+  Send,
+  AlertCircle,
+  Building2,
+  DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { useSocket } from '@/lib/Socket';
-import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +52,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-// RTK Query hooks
+import { formatOrderItemName } from '../lib/orderUtils';
+import OrderItemRow from '../Components/OrderItemRow';
+import BulkServeButton from '../Components/BulkServeButton';
 import {
   useOrderByIdQuery,
   useUpdateOrderStatusMutation,
@@ -50,92 +69,129 @@ type OrderStatus =
   | 'served'
   | 'completed'
   | 'canceled';
-const OrderDetailsPage = () => {
+
+export const OrderDetailsPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
-
   const navigate = useNavigate();
-
   const socket = useSocket();
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_banking'>(
-    'cash'
-  );
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_banking'>('cash');
   const [selectedBank, setSelectedBank] = useState<string>('CBE');
   const [receiptImage, setReceiptImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [itemFilter, setItemFilter] = useState<'all' | 'ready' | 'in_progress' | 'served' | 'void'>('all');
 
   const {
-    data: order,
+    data: orderResponse,
     isLoading,
     isError,
     refetch,
+    isRefetching,
   } = useOrderByIdQuery(orderId);
-  const { mutate: updateStatus } = useUpdateOrderStatusMutation();
-  const { mutate: markAsPaid, isLoading: isPaying } =
-    useMarkOrderAsPaidMutation();
+
+  const order = (orderResponse as any)?.data?.order || orderResponse;
+
+  const { mutate: updateStatus, isPending: isUpdatingStatus } = useUpdateOrderStatusMutation();
+  const { mutate: markAsPaid, isPending: isPaying } = useMarkOrderAsPaidMutation();
+
   const confirmPayment = async () => {
     try {
-      const formData = new FormData();
-      formData.append('paymentMethod', paymentMethod);
-      if (paymentMethod === 'mobile_banking') {
-        formData.append('bankName', selectedBank);
-      }
+      if (!order) return;
+      let payload: any;
       if (receiptImage) {
+        const formData = new FormData();
+        formData.append('paymentMethod', paymentMethod);
+        if (paymentMethod === 'mobile_banking') {
+          formData.append('bankName', selectedBank);
+        }
         formData.append('image', receiptImage);
+        payload = formData;
+      } else {
+        payload = {
+          paymentMethod,
+          ...(paymentMethod === 'mobile_banking' ? { bankName: selectedBank } : {}),
+        };
       }
 
-      // Assuming your markAsPaid mutation can handle FormData
       await markAsPaid(
-        { orderId: order._id, data: formData },
+        { orderId: order._id, data: payload },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            const status = (order.status as string)?.toLowerCase();
+            if (status === 'served' || status === 'delivered' || status === 'ready') {
+              try {
+                await updateStatus({ orderId: order._id, status: 'completed' });
+              } catch (err) {
+                console.error('Failed to update status to completed', err);
+              }
+            }
+            toast.success('Payment verified and recorded successfully!');
             setIsConfirmOpen(false);
-            // Clear local states for next time
             setReceiptImage(null);
             setPreviewUrl(null);
+            refetch();
+          },
+          onError: (err: any) => {
+            toast.error(err?.response?.data?.message || 'Payment recording failed');
           },
         }
       );
-      setIsConfirmOpen(false);
     } catch (err) {
       console.error('Payment failed:', err);
     }
   };
+
   useEffect(() => {
     if (!socket || !orderId) return;
 
     const handleOrderUpdate = (payload: any) => {
-      const updatedOrderId = payload.orderId || payload._id;
+      const updatedOrder = payload.order || payload;
+      const updatedOrderId = updatedOrder.orderId || updatedOrder._id || payload.orderId;
 
-      if (updatedOrderId === orderId) {
+      if (!updatedOrderId || updatedOrderId === orderId) {
         refetch();
       }
     };
+
     socket.on('order:status-updated', handleOrderUpdate);
+    socket.on('order:status-changed', handleOrderUpdate);
+    socket.on('order-updated', handleOrderUpdate);
+    socket.on('order:item-updated', handleOrderUpdate);
+    socket.on('order:items-bulk-served', handleOrderUpdate);
     socket.on('order-paid', handleOrderUpdate);
     socket.on('order:canceled', handleOrderUpdate);
+    socket.on('ticket:created', handleOrderUpdate);
+    socket.on('ticket:updated', handleOrderUpdate);
+    socket.on('ticket:status-changed', handleOrderUpdate);
+
     return () => {
       socket.off('order:status-updated', handleOrderUpdate);
+      socket.off('order:status-changed', handleOrderUpdate);
+      socket.off('order-updated', handleOrderUpdate);
+      socket.off('order:item-updated', handleOrderUpdate);
+      socket.off('order:items-bulk-served', handleOrderUpdate);
       socket.off('order-paid', handleOrderUpdate);
       socket.off('order:canceled', handleOrderUpdate);
+      socket.off('ticket:created', handleOrderUpdate);
+      socket.off('ticket:updated', handleOrderUpdate);
+      socket.off('ticket:status-changed', handleOrderUpdate);
     };
   }, [socket, orderId, refetch]);
+
   if (isLoading) {
     return (
-      <div className="max-w-5xl mx-auto p-6 space-y-8">
-        <Skeleton className="h-12 w-64" />
-
-        <Skeleton className="h-32 w-full" />
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          <Skeleton className="lg:col-span-2 h-96" />
-
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        <div className="flex items-center justify-between border-b pb-4">
+          <Skeleton className="h-10 w-48 rounded-lg" />
+          <Skeleton className="h-10 w-64 rounded-lg" />
+        </div>
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-[480px] rounded-xl" />
           <div className="space-y-6">
-            <Skeleton className="h-32" />
-
-            <Skeleton className="h-48" />
+            <Skeleton className="h-44 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
           </div>
         </div>
       </div>
@@ -144,63 +200,86 @@ const OrderDetailsPage = () => {
 
   if (isError || !order) {
     return (
-      <div className="max-w-5xl mx-auto p-12 text-center">
-        <p className="text-destructive text-lg font-medium">Order not found</p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 text-primary hover:underline"
-        >
-          ← Go back
-        </button>
+      <div className="max-w-3xl mx-auto py-20 px-6 text-center">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-muted/80 flex items-center justify-center mb-4 text-muted-foreground border border-outline-variant">
+          <Clock className="w-8 h-8 text-primary/80" />
+        </div>
+        <h2 className="text-xl font-bold text-foreground mb-1.5">
+          Order Not Found or Unavailable
+        </h2>
+        <p className="text-muted-foreground text-xs max-w-sm mx-auto mb-6">
+          The requested ticket could not be retrieved from the active database. It may have been archived or removed.
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            size="sm"
+            onClick={() => navigate('/orders/active')}
+            className="text-xs font-bold bg-primary text-primary-foreground"
+          >
+            Active Orders Board
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="text-xs font-medium"
+          >
+            Go Back
+          </Button>
+        </div>
       </div>
     );
   }
-console.log("orderId from params:", orderId);
-  const currentStatus = order.status as OrderStatus;
 
+  const currentStatus = (order.status || 'pending').toLowerCase() as OrderStatus;
   const isPaid = order.paymentStatus === 'paid';
+  const isCanceled = currentStatus === 'canceled';
 
-  const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
+  const statusConfig: Record<OrderStatus, { label: string; color: string; dot: string }> = {
     pending: {
-      label: 'Pending',
-      color: 'bg-slate-100 text-slate-600 border-slate-200',
+      label: 'Pending Review',
+      color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+      dot: 'bg-amber-500',
     },
     accepted: {
       label: 'Accepted',
-      color: 'bg-blue-500/10 text-blue-600 border-blue-200',
+      color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+      dot: 'bg-blue-500',
     },
     preparing: {
-      label: 'Preparing',
-      color: 'bg-orange-500/10 text-orange-600 border-orange-200',
+      label: 'Kitchen Cooking',
+      color: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
+      dot: 'bg-orange-500',
     },
     ready: {
-      label: 'Ready',
-      color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
+      label: 'Ready for Service',
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+      dot: 'bg-emerald-500',
     },
     served: {
-      label: 'Served',
-      color: 'bg-purple-500/10 text-purple-600 border-purple-200',
+      label: 'Served / Dispatched',
+      color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
+      dot: 'bg-purple-500',
     },
     completed: {
       label: 'Completed',
-      color: 'bg-gray-900 text-white border-transparent',
+      color: 'bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900',
+      dot: 'bg-white',
     },
     canceled: {
       label: 'Canceled',
-      color: 'bg-red-500/10 text-red-600 border-red-200',
+      color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+      dot: 'bg-rose-500',
     },
   };
 
-  const handleJoinRequest = async () => {
-    let nextStatus: OrderStatus = currentStatus;
-    if (currentStatus === 'pending') nextStatus = 'accepted';
-    else if (currentStatus === 'accepted' || currentStatus === 'ready')
-      nextStatus = 'preparing';
-    if (nextStatus !== currentStatus) {
-      await updateStatus({ orderId: order._id, status: nextStatus });
-    }
-  };
   const handleNextStep = async () => {
+    if (!order) return;
+    if (currentStatus === 'served' && !isPaid) {
+      setIsConfirmOpen(true);
+      return;
+    }
+
     const sequence: OrderStatus[] = [
       'pending',
       'accepted',
@@ -210,14 +289,19 @@ console.log("orderId from params:", orderId);
       'completed',
     ];
     const currentIndex = sequence.indexOf(currentStatus);
-    if (currentIndex < sequence.length - 1) {
+    if (currentIndex >= 0 && currentIndex < sequence.length - 1) {
       const nextStatus = sequence[currentIndex + 1];
       await updateStatus({ orderId: order._id, status: nextStatus });
     }
   };
+
   const handleCancel = async () => {
-    await updateStatus({ orderId: order._id, status: 'canceled' });
+    if (!order) return;
+    if (window.confirm(`Are you sure you want to cancel order ${order.orderNumber}?`)) {
+      await updateStatus({ orderId: order._id, status: 'canceled' });
+    }
   };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -226,553 +310,768 @@ console.log("orderId from params:", orderId);
     }
   };
 
+  const tableStr =
+    typeof order.table === 'object'
+      ? order.table?.tableNumber
+      : order.tableNumber || order.table;
+
+  const STEPS: { key: OrderStatus; label: string }[] = [
+    { key: 'pending', label: '1. Pending' },
+    { key: 'accepted', label: '2. Accepted' },
+    { key: 'preparing', label: '3. Cooking' },
+    { key: 'ready', label: '4. Ready' },
+    { key: 'served', label: '5. Served' },
+    { key: 'completed', label: '6. Completed' },
+  ];
+
+  const currentStepIndex = isCanceled
+    ? -1
+    : STEPS.findIndex((s) => s.key === currentStatus);
+
+  const subtotal = order.subtotal || order.items?.reduce((acc: number, item: any) => acc + (item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))), 0) || 0;
+  const totalAmount = order.totalAmount || subtotal;
+  const tax = order.tax || Math.max(0, totalAmount - subtotal);
+  const discount = order.discount || 0;
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      {/* Header & Main Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+    <div className="max-w-7xl mx-auto space-y-5 pb-20 px-4 sm:px-6 pt-2">
+      {/* 1. Top Bar / App Context */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-muted rounded-full transition-colors"
+            className="p-2 hover:bg-muted/80 text-on-surface rounded-lg transition-colors border border-border shrink-0"
+            title="Go Back"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
 
           <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-black tracking-tight">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="font-mono font-black text-xl text-foreground tracking-tight">
                 {order.orderNumber}
-              </h1>
+              </span>
 
               <Badge
+                variant="outline"
                 className={cn(
-                  'px-3 py-0.5 font-bold uppercase tracking-wider text-[10px]',
-                  statusConfig[currentStatus].color
+                  'px-2.5 py-0.5 font-bold text-xs border flex items-center gap-1.5',
+                  statusConfig[currentStatus]?.color || 'bg-muted text-muted-foreground'
                 )}
               >
-                {statusConfig[currentStatus].label}
+                <span
+                  className={cn(
+                    'w-1.5 h-1.5 rounded-full',
+                    statusConfig[currentStatus]?.dot || 'bg-slate-400'
+                  )}
+                />
+                {statusConfig[currentStatus]?.label || currentStatus}
               </Badge>
 
               <Badge
-                variant={isPaid ? 'success' : 'warning'}
                 className={cn(
+                  'px-2.5 py-0.5 text-xs font-bold border',
                   isPaid
-                    ? 'bg-green-100 text-green-800 border-green-200'
-                    : 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                    : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
                 )}
               >
                 {isPaid ? 'PAID' : 'UNPAID'}
               </Badge>
             </div>
 
-            <p className="text-sm text-muted-foreground mt-1">
-              {order.table?.tableNumber
-                ? `Table ${order.table?.tableNumber}`
-                : 'N/A'}{' '}
-              • {order.orderType.replace('_', ' ')}
-            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+              <span>
+                Placed:{' '}
+                <strong className="text-foreground">
+                  {new Date(order.placedAt || order.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </strong>
+              </span>
+              <span>•</span>
+              <span>
+                Source: <strong className="text-foreground capitalize">{order.source || 'In-House'}</strong>
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {currentStatus !== 'completed' && currentStatus !== 'canceled' && (
+        {/* Top Action Buttons matching RestoFlow Header */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="text-xs h-9 gap-1.5 border-border"
+          >
+            <RotateCcw className={cn('h-3.5 w-3.5', isRefetching && 'animate-spin')} />
+            Sync Ticket
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="text-xs h-9 gap-1.5 border-border"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Print Receipt
+          </Button>
+
+          {!isCanceled && currentStatus !== 'completed' && (
             <>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleCancel}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors rounded-lg border border-red-200"
+                className="text-xs h-9 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900 dark:hover:bg-rose-950/30"
               >
-                <XCircle className="h-4 w-4" /> Cancel
-              </button>
+                <XCircle className="h-3.5 w-3.5 mr-1" />
+                Cancel Order
+              </Button>
 
-              {(currentStatus === 'pending' ||
-                currentStatus === 'accepted') && (
-                <button
-                  onClick={handleJoinRequest}
-                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
-                >
-                  <Users className="h-4 w-4" />
-
-                  {currentStatus === 'pending'
-                    ? 'Join as Waiter'
-                    : 'Join as Chef'}
-                </button>
-              )}
-
-              {currentStatus !== 'pending' && currentStatus !== 'completed' && (
-                <button
+              {currentStatus !== 'served' && (
+                <Button
+                  size="sm"
                   onClick={handleNextStep}
-                  className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition-all"
+                  disabled={isUpdatingStatus}
+                  className="text-xs h-9 bg-primary text-primary-foreground font-bold hover:opacity-90 shadow-2xs gap-1.5"
                 >
-                  Move to Next Step <ChevronRight className="h-4 w-4" />
-                </button>
+                  {isUpdatingStatus ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Advance to Next Stage</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </Button>
               )}
-
-              {/* FIX: Show only when served and unpaid */}
 
               {currentStatus === 'served' && !isPaid && (
-                <button
+                <Button
+                  size="sm"
                   onClick={() => setIsConfirmOpen(true)}
                   disabled={isPaying}
-                  className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-all min-w-[140px] justify-center"
+                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-2xs gap-1.5"
                 >
-                  Mark as Paid 💳
-                </button>
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Settle Payment & Complete
+                </Button>
+              )}
+
+              {currentStatus === 'served' && isPaid && (
+                <Button
+                  size="sm"
+                  onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
+                  disabled={isUpdatingStatus}
+                  className="text-xs h-9 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Complete Order
+                </Button>
               )}
             </>
           )}
         </div>
       </div>
 
-      {/* STATUS TRACKER */}
+      {/* 2. Order Context Badges (Dine-in / Table / Guest / Customer) */}
+      <div className="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Order Type */}
+          <div className="inline-flex items-center gap-1.5 bg-primary-container text-white px-3 py-1 rounded-full text-xs font-semibold">
+            {order.orderType === 'delivery' ? (
+              <Truck className="h-3.5 w-3.5" />
+            ) : order.orderType === 'takeaway' ? (
+              <ShoppingBag className="h-3.5 w-3.5" />
+            ) : (
+              <Utensils className="h-3.5 w-3.5" />
+            )}
+            <span className="capitalize">{order.orderType?.replace('_', ' ') || 'Dine-In'}</span>
+          </div>
 
-      <div className="bg-card border rounded-xl p-2 shadow-sm">
-        <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-8 text-center">
-          Order Journey
-        </h3>
+          {/* Table Badge */}
+          {tableStr && (
+            <div className="inline-flex items-center gap-1.5 bg-surface-container-high border border-border text-foreground px-3 py-1 rounded-full text-xs font-semibold">
+              <Layers className="h-3.5 w-3.5 text-primary" />
+              Table {tableStr}
+            </div>
+          )}
 
-        <div className="relative flex justify-between items-start max-w-3xl mx-auto">
-          <div className="absolute top-5 left-0 w-full h-0.5 bg-muted -z-0" />
+          {/* Customer info */}
+          <div className="inline-flex items-center gap-1.5 bg-surface-container-high border border-border text-foreground px-3 py-1 rounded-full text-xs font-semibold">
+            <User className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{order.customerName || 'Walk-in Guest'}</span>
+          </div>
 
-          {(
-            [
-              'pending',
-              'accepted',
-              'preparing',
-              'ready',
-              'served',
-              'completed',
-            ] as OrderStatus[]
-          ).map((step, idx) => {
-            const steps = [
-              'pending',
-              'accepted',
-              'preparing',
-              'ready',
-              'served',
-              'completed',
-            ];
+          {order.customerPhone && (
+            <div className="inline-flex items-center gap-1.5 bg-surface-container-high border border-border text-muted-foreground px-3 py-1 rounded-full text-xs font-mono">
+              <Phone className="h-3.5 w-3.5" />
+              {order.customerPhone}
+            </div>
+          )}
 
-            const currentIndex = steps.indexOf(currentStatus);
+          {order.guestCount && (
+            <div className="inline-flex items-center gap-1.5 bg-surface-container-high border border-border text-muted-foreground px-3 py-1 rounded-full text-xs">
+              <Users className="h-3.5 w-3.5" />
+              {order.guestCount} Guests
+            </div>
+          )}
+        </div>
 
-            const isCompleted = idx < currentIndex;
+        {order.branch && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Building2 className="h-3.5 w-3.5" />
+            <span>Branch: <strong className="text-foreground">{typeof order.branch === 'object' ? order.branch?.name : 'Main Kitchen'}</strong></span>
+          </div>
+        )}
+      </div>
 
-            const isCurrent = step === currentStatus;
+      {/* 3. Order Journey Status Progression Bar */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-2xs">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Timer className="h-3.5 w-3.5 text-primary" />
+            Kitchen Order Lifecycle
+          </span>
+          <span className="text-xs font-semibold text-foreground">
+            Current Stage:{' '}
+            <strong className="text-primary capitalize">{statusConfig[currentStatus]?.label || currentStatus}</strong>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {STEPS.map((step, idx) => {
+            const isDone = currentStepIndex > idx;
+            const isCurrent = currentStepIndex === idx;
 
             return (
               <div
-                key={step}
-                className="relative z-10 flex flex-col items-center gap-3"
+                key={step.key}
+                className={cn(
+                  'flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all',
+                  isDone
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300'
+                    : isCurrent
+                      ? 'bg-primary-container text-white border-primary-container font-bold shadow-xs'
+                      : 'bg-surface-container-lowest border-border text-muted-foreground'
+                )}
               >
                 <div
                   className={cn(
-                    'h-10 w-10 rounded-full flex items-center justify-center border-4 transition-all duration-500',
-
-                    isCompleted
-                      ? 'bg-primary border-primary text-white'
+                    'w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold',
+                    isDone
+                      ? 'bg-emerald-600 text-white'
                       : isCurrent
-                        ? 'bg-background border-primary text-primary shadow-[0_0_15px_rgba(var(--primary),0.4)]'
-                        : 'bg-background border-muted text-muted-foreground'
+                        ? 'bg-white text-slate-900'
+                        : 'bg-muted text-muted-foreground'
                   )}
                 >
-                  {isCompleted ? (
-                    <CheckCircle2 className="h-5 w-5" />
-                  ) : (
-                    <span className="text-xs font-bold">{idx + 1}</span>
-                  )}
+                  {isDone ? <Check className="h-3 w-3" /> : idx + 1}
                 </div>
-
-                <div className="text-center">
-                  <p
-                    className={cn(
-                      'text-[10px] font-black uppercase tracking-tighter',
-                      isCurrent ? 'text-primary' : 'text-muted-foreground'
-                    )}
-                  >
-                    {step}
-                  </p>
-                </div>
+                <span className="truncate">{step.label.split('. ')[1]}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Order Items */}
+      {/* 4. Main 3-Column Layout matching RestoFlow POS Screen */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left / Middle: Order Items Summary (8 Columns) */}
+        <div className="lg:col-span-8 space-y-5">
+          <div className="bg-card border border-border rounded-xl shadow-2xs overflow-hidden">
+            <div className="p-3.5 border-b border-border bg-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ChefHat className="h-4 w-4 text-primary" />
+                <h3 className="font-bold text-sm text-foreground">
+                  Order Items Breakdown
+                </h3>
+                <span className="text-xs font-mono px-2 py-0.5 bg-card border rounded-full text-muted-foreground">
+                  {order.items?.length || 0} Lines
+                </span>
+              </div>
 
-        <div className="lg:col-span-2 bg-card border rounded-xl overflow-hidden">
-          <div className="p-4 border-b bg-muted/30 flex justify-between items-center">
-            <h3 className="font-bold">Items Summary</h3>
-
-            <button className="text-xs font-bold text-primary flex items-center gap-1">
-              <Printer className="h-3 w-3" /> Print Ticket
-            </button>
-          </div>
-
-          <div className="divide-y">
-            {order.items.map((item: any, i: number) => (
-              <div
-                key={i}
-                className="p-4 flex justify-between items-center hover:bg-muted/10 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center font-mono font-bold">
-                    {item.quantity}x
-                  </div>
-
-                  <div>
-                    <p className="font-bold text-sm">
-                      {item.name || item.menuItem?.name}
-                    </p>
-
-                    {item.notes && (
-                      <p className="text-xs text-orange-600 font-medium italic">
-                        "{item.notes}"
-                      </p>
-                    )}
-                  </div>
+              <div className="flex items-center gap-2.5">
+                <BulkServeButton
+                  orderId={order._id}
+                  items={order.items || []}
+                />
+                <div className="text-xs font-medium text-muted-foreground hidden sm:block">
+                  Total Qty:{' '}
+                  <strong className="text-foreground">
+                    {order.items?.reduce((sum: number, it: any) => sum + (it.quantity || 1), 0) || 0}
+                  </strong>
                 </div>
-
-                <p className="font-mono font-bold text-sm">
-                  ${item.totalPrice.toFixed(2)}
-                </p>
               </div>
-            ))}
-          </div>
+            </div>
 
-          <div className="p-6 bg-slate-50 border-t">
-            <div className="flex justify-between items-end">
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-muted-foreground uppercase">
-                  Subtotal: ${order.subtotal.toFixed(2)}
-                </p>
+            {/* Quick Status Filter Tabs */}
+            {order.items && order.items.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3.5 py-2 border-b bg-muted/20 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setItemFilter('all')}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                    itemFilter === 'all'
+                      ? 'bg-primary text-primary-foreground shadow-2xs'
+                      : 'bg-card text-muted-foreground hover:text-foreground border'
+                  }`}
+                >
+                  All ({order.items.length})
+                </button>
+                {order.items.some((i: any) => (i.status || 'pending').toLowerCase() === 'ready') && (
+                  <button
+                    type="button"
+                    onClick={() => setItemFilter('ready')}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                      itemFilter === 'ready'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                    }`}
+                  >
+                    Ready ({order.items.filter((i: any) => (i.status || 'pending').toLowerCase() === 'ready').length})
+                  </button>
+                )}
+                {order.items.some((i: any) => (i.status || 'pending').toLowerCase() === 'in_progress') && (
+                  <button
+                    type="button"
+                    onClick={() => setItemFilter('in_progress')}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                      itemFilter === 'in_progress'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                    }`}
+                  >
+                    In Kitchen ({order.items.filter((i: any) => (i.status || 'pending').toLowerCase() === 'in_progress').length})
+                  </button>
+                )}
+                {order.items.some((i: any) => (i.status || 'pending').toLowerCase() === 'served') && (
+                  <button
+                    type="button"
+                    onClick={() => setItemFilter('served')}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                      itemFilter === 'served'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                    }`}
+                  >
+                    Served ({order.items.filter((i: any) => (i.status || 'pending').toLowerCase() === 'served').length})
+                  </button>
+                )}
+                {order.items.some((i: any) => (i.status || 'pending').toLowerCase() === 'void') && (
+                  <button
+                    type="button"
+                    onClick={() => setItemFilter('void')}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                      itemFilter === 'void'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                    }`}
+                  >
+                    Voided ({order.items.filter((i: any) => (i.status || 'pending').toLowerCase() === 'void').length})
+                  </button>
+                )}
+              </div>
+            )}
 
-                <p className="text-xs font-bold text-muted-foreground uppercase">
-                  Tax: ${(order.totalAmount - order.subtotal).toFixed(2)}
-                </p>
+            {/* Items List */}
+            <div className="divide-y divide-border">
+              {order.items
+                ?.filter((item: any) => {
+                  if (itemFilter === 'all') return true;
+                  return (item.status || 'pending').toLowerCase() === itemFilter;
+                })
+                .map((item: any, idx: number) => (
+                  <OrderItemRow
+                    key={item._id || idx}
+                    orderId={order._id}
+                    item={item}
+                    onRefresh={() => refetch()}
+                  />
+                ))}
+            </div>
+
+            {/* Financial Totals Card */}
+            <div className="p-4 border-t border-border bg-surface-container-low space-y-2">
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                <span>Subtotal</span>
+                <span className="font-mono font-medium text-foreground">
+                  ETB {Number(subtotal).toFixed(2)}
+                </span>
               </div>
 
-              <div className="text-right">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                  Total Due
-                </p>
+              {discount > 0 && (
+                <div className="flex justify-between items-center text-xs text-emerald-600 font-medium">
+                  <span>Discount</span>
+                  <span className="font-mono">- ETB {Number(discount).toFixed(2)}</span>
+                </div>
+              )}
 
-                <p className="text-3xl font-black text-primary">
-                  ${order.totalAmount.toFixed(2)}
-                </p>
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                <span>Tax & Service</span>
+                <span className="font-mono font-medium text-foreground">
+                  ETB {Number(tax).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="border-t border-border/80 pt-2 flex justify-between items-baseline">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                    Total Amount Due
+                  </span>
+                  <p className="text-[11px] text-muted-foreground">
+                    Payment Status:{' '}
+                    <strong className={isPaid ? 'text-emerald-600' : 'text-amber-600'}>
+                      {isPaid ? 'Settled in Full' : 'Pending Payment'}
+                    </strong>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-black font-mono text-primary">
+                    ETB {Number(totalAmount).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Staff & Timeline */}
-
-        <div className="space-y-6">
-          <div className="bg-card border rounded-xl p-5 space-y-4 shadow-sm">
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest">
-              Handling Staff
+        {/* Right Column: Staff, Timeline, and Payment info (4 Columns) */}
+        <div className="lg:col-span-4 space-y-5">
+          {/* Handling Personnel Card */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-2xs">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-primary" />
+              Service & Kitchen Personnel
             </h3>
 
-            <div className="space-y-3">
-              <div
-                className={cn(
-                  'flex items-center gap-3 p-3 rounded-lg border transition-all',
-                  order.assignedWaiter
-                    ? 'bg-blue-50 border-blue-100'
-                    : 'bg-muted/20 border-dashed'
-                )}
-              >
-                <div className="p-2 bg-white rounded-md shadow-sm">
-                  <User className="h-4 w-4 text-blue-600" />
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-surface-container-lowest">
+                <div className="p-2 rounded-md bg-blue-500/10 text-blue-600">
+                  <User className="h-4 w-4" />
                 </div>
-
-                <div>
-                  <p className="text-xs font-black uppercase text-muted-foreground">
-                    Waiter
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                    Assigned Server / Waiter
                   </p>
-
-                  <p className="text-sm font-bold">
-                    {order.placedBy?.firstName} {order.placedBy?.lastName || ''}
+                  <p className="text-xs font-bold text-foreground truncate">
+                    {order.assignedWaiter?.fullName ||
+                      order.placedBy?.firstName ||
+                      'Walk-in / Auto-Routed'}
                   </p>
                 </div>
               </div>
 
-              <div
-                className={cn(
-                  'flex items-center gap-3 p-3 rounded-lg border transition-all',
-                  order.assignedKitchenStaff
-                    ? 'bg-orange-50 border-orange-100'
-                    : 'bg-muted/20 border-dashed'
-                )}
-              >
-                <div className="p-2 bg-white rounded-md shadow-sm">
-                  <Users className="h-4 w-4 text-orange-600" />
+              <div className="flex items-center gap-3 p-2.5 rounded-lg border bg-surface-container-lowest">
+                <div className="p-2 rounded-md bg-amber-500/10 text-amber-600">
+                  <ChefHat className="h-4 w-4" />
                 </div>
-
-                <div>
-                  <p className="text-xs font-black uppercase text-muted-foreground">
-                    Kitchen
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                    Kitchen KDS Station
                   </p>
-
-                  <p className="text-sm font-bold">
-                    {order.assignedKitchenStaff?.fullName ||
-                      'Waiting for Kitchen...'}
+                  <p className="text-xs font-bold text-foreground truncate">
+                    {order.assignedKitchenStaff?.fullName || 'Main Station Chef Queue'}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 text-white rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <Timer className="h-4 w-4 text-primary" />
+          {/* Live Order Timeline */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-2xs">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-primary" />
+              Activity Timestamp Log
+            </h3>
 
-              <span className="text-xs font-bold uppercase tracking-widest">
-                Live Updates
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              <div className="border-l-2 border-primary pl-4 py-1">
-                <p className="text-xs font-bold">
-                  Placed at {new Date(order.placedAt).toLocaleTimeString()}
+            <div className="space-y-3 text-xs border-l-2 border-primary/40 pl-3 ml-1">
+              <div className="space-y-0.5">
+                <p className="font-bold text-foreground flex items-center justify-between">
+                  <span>Order Placed</span>
+                  <span className="font-mono text-muted-foreground text-[11px]">
+                    {new Date(order.placedAt || order.createdAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
                 </p>
-
-                <p className="text-[11px] text-slate-400">Order received</p>
+                <p className="text-[11px] text-muted-foreground">Initial ticket recorded</p>
               </div>
 
               {order.acceptedAt && (
-                <div className="border-l-2 border-blue-400 pl-4 py-1">
-                  <p className="text-xs font-bold">
-                    {new Date(order.acceptedAt).toLocaleTimeString()}
+                <div className="space-y-0.5">
+                  <p className="font-bold text-foreground flex items-center justify-between">
+                    <span>Staff Accepted</span>
+                    <span className="font-mono text-muted-foreground text-[11px]">
+                      {new Date(order.acceptedAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </p>
-
-                  <p className="text-[11px] text-slate-400">
-                    Accepted by waiter
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">Authorized for kitchen</p>
                 </div>
               )}
 
               {order.readyAt && (
-                <div className="border-l-2 border-emerald-400 pl-4 py-1">
-                  <p className="text-xs font-bold">
-                    {new Date(order.readyAt).toLocaleTimeString()}
+                <div className="space-y-0.5">
+                  <p className="font-bold text-emerald-600 flex items-center justify-between">
+                    <span>Food Ready</span>
+                    <span className="font-mono text-muted-foreground text-[11px]">
+                      {new Date(order.readyAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </p>
-
-                  <p className="text-[11px] text-slate-400">Ready for pickup</p>
+                  <p className="text-[11px] text-muted-foreground">Kitchen ticket completed</p>
                 </div>
               )}
 
               {order.servedAt && (
-                <div className="border-l-2 border-purple-400 pl-4 py-1">
-                  <p className="text-xs font-bold">
-                    {new Date(order.servedAt).toLocaleTimeString()}
+                <div className="space-y-0.5">
+                  <p className="font-bold text-purple-600 flex items-center justify-between">
+                    <span>Served to Table</span>
+                    <span className="font-mono text-muted-foreground text-[11px]">
+                      {new Date(order.servedAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </p>
-
-                  <p className="text-[11px] text-slate-400">Served to table</p>
+                  <p className="text-[11px] text-muted-foreground">Dispatched to guest</p>
                 </div>
               )}
 
               {order.completedAt && (
-                <div className="border-l-2 border-gray-400 pl-4 py-1">
-                  <p className="text-xs font-bold">
-                    {new Date(order.completedAt).toLocaleTimeString()}
+                <div className="space-y-0.5">
+                  <p className="font-bold text-foreground flex items-center justify-between">
+                    <span>Closed & Paid</span>
+                    <span className="font-mono text-muted-foreground text-[11px]">
+                      {new Date(order.completedAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </p>
-
-                  <p className="text-[11px] text-slate-400">Order completed</p>
+                  <p className="text-[11px] text-muted-foreground">Transaction finished</p>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Payment Details / Proof */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-2xs">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-primary" />
+                Payment Record
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                  isPaid ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                )}
+              >
+                {isPaid ? 'SETTLED' : 'DUE'}
+              </span>
+            </h3>
+
+            {isPaid ? (
+              <div className="p-3 rounded-lg border bg-surface-container-lowest space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Method:</span>
+                  <span className="font-bold uppercase text-foreground">
+                    {order.paymentMethod?.replace('_', ' ') || 'Cash / Counter'}
+                  </span>
+                </div>
+                {order.bankName && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Platform:</span>
+                    <span className="font-bold text-foreground">{order.bankName}</span>
+                  </div>
+                )}
+                {order.paymentProof && (
+                  <div className="pt-2 border-t">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">
+                      Uploaded Slip:
+                    </p>
+                    <a
+                      href={order.paymentProof}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline font-medium block truncate"
+                    >
+                      View Attached Receipt Image
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  Total amount of <strong>ETB {Number(totalAmount).toFixed(2)}</strong> is awaiting collection.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => setIsConfirmOpen(true)}
+                  className="w-full text-xs font-bold bg-primary text-primary-foreground h-8"
+                >
+                  <CreditCard className="h-3 w-3 mr-1.5" />
+                  Settle & Verify Payment
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-
+      {/* 5. Payment Confirmation Modal */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <DialogContent className="sm:max-w-[450px] p-0 border-none shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogContent className="sm:max-w-[440px] p-0 border border-border shadow-xl overflow-hidden">
           {isPaying && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-[50] flex flex-col items-center justify-center animate-in fade-in duration-300">
-              <div className="bg-slate-900 p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                <p className="text-white text-[10px] font-black uppercase tracking-widest">
-                  Verifying Payment...
-                </p>
-              </div>
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              <p className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Verifying Payment...
+              </p>
             </div>
           )}
-          <DialogHeader className="p-6 bg-slate-900 text-white shrink-0">
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              Payment Verification
+
+          <DialogHeader className="p-5 bg-primary text-white border-b">
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-white">
+              <CreditCard className="h-4 w-4" />
+              Record Order Payment
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              Recording manual payment for Order #{order.orderNumber}
+            <DialogDescription className="text-slate-300 text-xs">
+              Verify and settle payment for Order #{order.orderNumber}
             </DialogDescription>
           </DialogHeader>
 
-          {/* SCROLLABLE BODY */}
-          <div
-            className={cn(
-              'p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar',
-              isPaying && 'pointer-events-none opacity-50'
-            )}
-          >
+          <div className="p-5 space-y-4 text-xs">
+            {/* Amount Banner */}
+            <div className="p-3 rounded-lg border bg-surface-container-low flex items-center justify-between">
+              <span className="font-bold text-muted-foreground">Total Due:</span>
+              <span className="font-mono font-black text-lg text-primary">
+                ETB {Number(totalAmount).toFixed(2)}
+              </span>
+            </div>
+
             {/* Payment Method Toggle */}
-            <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                Select Method
-              </Label>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-foreground">Select Payment Method</Label>
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  disabled={isPaying}
+                  type="button"
                   onClick={() => setPaymentMethod('cash')}
                   className={cn(
-                    'flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all font-bold text-sm',
+                    'flex items-center justify-center gap-2 p-3 rounded-lg border text-xs font-bold transition-all',
                     paymentMethod === 'cash'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-slate-100 text-slate-500'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:bg-muted'
                   )}
                 >
-                  <Wallet className="h-4 w-4" /> Cash
+                  <Wallet className="h-4 w-4" /> Cash / Counter
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => setPaymentMethod('mobile_banking')}
                   className={cn(
-                    'flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all font-bold text-sm',
+                    'flex items-center justify-center gap-2 p-3 rounded-lg border text-xs font-bold transition-all',
                     paymentMethod === 'mobile_banking'
-                      ? 'border-primary bg-primary/5 text-primary shadow-sm'
-                      : 'border-slate-100 hover:border-slate-200 text-slate-500'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:bg-muted'
                   )}
                 >
-                  <ImageIcon className="h-4 w-4" /> Mobile
+                  <ImageIcon className="h-4 w-4" /> Mobile / Bank
                 </button>
               </div>
             </div>
 
+            {/* Bank Select if mobile */}
             {paymentMethod === 'mobile_banking' && (
-              <div className="space-y-5 animate-in fade-in slide-in-from-top-4 duration-300">
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    Choose Bank / Platform
-                  </Label>
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Platform / Bank</Label>
                   <Select value={selectedBank} onValueChange={setSelectedBank}>
-                    <SelectTrigger className="w-full h-12 rounded-xl border-2 font-bold focus:ring-primary bg-background">
-                      <SelectValue placeholder="Select a bank" />
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select platform" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-2 shadow-xl">
-                      <SelectItem value="CBE" className="font-bold py-3">
-                        CBE (Commercial Bank)
-                      </SelectItem>
-                      <SelectItem value="telebirr" className="font-bold py-3">
-                        Telebirr
-                      </SelectItem>
-                      <SelectItem value="Abyssinia" className="font-bold py-3">
-                        Bank of Abyssinia
-                      </SelectItem>
-                      <SelectItem value="Awash" className="font-bold py-3">
-                        Awash Bank
-                      </SelectItem>
-                      <SelectItem value="MPesa" className="font-bold py-3">
-                        M-Pesa / Safaricom
-                      </SelectItem>
+                    <SelectContent>
+                      <SelectItem value="CBE" className="text-xs">CBE (Commercial Bank of Ethiopia)</SelectItem>
+                      <SelectItem value="telebirr" className="text-xs">Telebirr SuperApp</SelectItem>
+                      <SelectItem value="Abyssinia" className="text-xs">Bank of Abyssinia</SelectItem>
+                      <SelectItem value="Awash" className="text-xs">Awash Bank</SelectItem>
+                      <SelectItem value="MPesa" className="text-xs">M-Pesa / Safaricom</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    Proof of Payment (Screenshot/Bill)
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">
+                    Payment Slip / Screenshot (Optional)
                   </Label>
-                  <div className="relative group cursor-pointer">
+                  <div className="relative border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 text-center cursor-pointer transition-colors">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleImageChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
-                    <div
-                      className={cn(
-                        'border-2 border-dashed rounded-2xl p-8 transition-all flex flex-col items-center justify-center gap-3',
-                        previewUrl
-                          ? 'border-emerald-500 bg-emerald-50/50'
-                          : 'border-slate-200 group-hover:border-primary group-hover:bg-slate-50'
-                      )}
-                    >
-                      {previewUrl ? (
-                        <div className="relative w-full overflow-hidden rounded-xl shadow-md border">
-                          {/* Note: The image will now expand and trigger the container's scrollbar */}
-                          <img
-                            src={previewUrl}
-                            alt="Receipt"
-                            className="w-full h-auto object-contain max-h-[400px]"
-                          />
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <p className="text-white text-xs font-black">
-                              CHANGE IMAGE
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="h-12 w-12 rounded-full bg-white shadow-sm border flex items-center justify-center">
-                            <Printer className="h-5 w-5 text-slate-400" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs font-bold text-slate-600">
-                              Click to upload photo
-                            </p>
-                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-tighter font-medium">
-                              JPEG, PNG or Screenshots
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    {previewUrl ? (
+                      <div className="space-y-2">
+                        <img
+                          src={previewUrl}
+                          alt="Receipt Slip"
+                          className="h-28 mx-auto object-contain rounded border"
+                        />
+                        <p className="text-[11px] text-primary font-bold">Click to change photo</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <ImageIcon className="h-6 w-6 text-muted-foreground mx-auto" />
+                        <p className="text-xs font-semibold text-foreground">
+                          Upload receipt image
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">PNG, JPG, or screenshot</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
-
-            {paymentMethod === 'cash' && (
-              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 animate-in fade-in duration-300">
-                <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                  <strong>Cash Payment:</strong> Ensure you have received the
-                  exact amount of{' '}
-                  <span className="font-black underline">
-                    ${order.totalAmount.toFixed(2)}
-                  </span>{' '}
-                  from the customer before confirming.
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* FIXED FOOTER */}
-          <DialogFooter className="p-6 bg-slate-50 border-t flex flex-row gap-3 shrink-0">
-            <button
-              disabled={isPaying}
+          <DialogFooter className="p-4 bg-muted/40 border-t flex flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setIsConfirmOpen(false)}
-              className="flex-1 px-4 py-4 text-xs font-black text-slate-500 uppercase tracking-widest hover:bg-slate-200 rounded-xl transition-all"
+              disabled={isPaying}
+              className="flex-1 text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={confirmPayment}
-              disabled={
-                isPaying ||
-                (paymentMethod === 'mobile_banking' && !receiptImage)
-              }
-              className="flex-[2] px-6 py-4 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-slate-200 transition-all active:scale-[0.98]"
+              disabled={isPaying}
+              className="flex-1 text-xs font-bold bg-primary text-primary-foreground"
             >
               {isPaying ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
               ) : (
-                <>
-                  Verify & Complete <CheckCircle2 className="h-4 w-4" />
-                </>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
               )}
-            </button>
+              Confirm & Settle
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

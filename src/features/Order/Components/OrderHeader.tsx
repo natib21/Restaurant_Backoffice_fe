@@ -1,26 +1,25 @@
 // src/features/orders/components/OrderHeader.tsx
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectOrder, setFullViewMode } from '../store/orderSlice';
+import { selectOrder } from '../store/orderSlice';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import type { RootState } from '@/app/store';
 
 const OrderHeader: React.FC<{ order: any }> = ({ order }) => {
   const dispatch = useDispatch();
-  const isFullViewMode = useSelector(
-    (state: RootState) => state.layout.isFullViewMode
+  const isOrderSidebarOpen = useSelector(
+    (state: RootState) => state.ui.orderSidebarOpen
   );
 
   const handleBack = () => {
     dispatch(selectOrder(null)); // deselect
-    dispatch(setFullViewMode(false));
   };
 
   return (
     <div className="p-4 border-b flex items-center gap-4">
       {/* Back Button - Only show when in full view or mobile */}
-      {(isFullViewMode || window.innerWidth < 768) && (
+      {(isOrderSidebarOpen || window.innerWidth < 768) && (
         <Button
           variant="ghost"
           size="icon"

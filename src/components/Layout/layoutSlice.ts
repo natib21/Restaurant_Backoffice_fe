@@ -57,6 +57,9 @@ const layoutSlice = createSlice({
     setOrderSidebarOpen: (state, action: PayloadAction<boolean>) => {
       state.orderSidebarOpen = action.payload;
     },
+    toggleOrderSidebar: (state) => {
+      state.orderSidebarOpen = !state.orderSidebarOpen;
+    },
   },
 });
 
@@ -71,6 +74,7 @@ export const {
   setCurrentBranch,
   clearCurrentBranch,
   setOrderSidebarOpen,
+  toggleOrderSidebar,
 } = layoutSlice.actions;
 
 export default layoutSlice.reducer;

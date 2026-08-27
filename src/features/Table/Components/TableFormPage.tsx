@@ -43,6 +43,7 @@ import { useGetMeQuery } from '../../../api/Queries/authQueries';
 import { useBranchesQuery } from '../../../api/Queries/branchQueries';
 import { useSelector } from 'react-redux';
 import { type RootState } from '@/app/store';
+import { useTranslation } from '@/locales/i18n';
 
 const formSchema = z.object({
   tableNumber: z.string().min(1, 'Table number is required').max(10),
@@ -66,6 +67,8 @@ const TableFormPage: React.FC<TableFormPageProps> = ({
   onSuccess,
   onCancel,
 }) => {
+  const { t } = useTranslation('table');
+  const { t: tCommon } = useTranslation('common');
   const isEdit = !!initialData;
   const { data: user } = useGetMeQuery();
   const { data: branches = [] } = useBranchesQuery();
@@ -107,10 +110,10 @@ const TableFormPage: React.FC<TableFormPageProps> = ({
           id: initialData._id,
           body: payload,
         });
-        toast.success('Table updated');
+        toast.success(t('tableUpdatedSuccess'));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success('Table created successfully');
+        toast.success(t('tableCreatedSuccess'));
       }
       onSuccess();
     } catch (err: any) {
@@ -346,14 +349,14 @@ const TableFormPage: React.FC<TableFormPageProps> = ({
             onClick={onCancel}
             className="text-muted-foreground"
           >
-            Discard
+            {tCommon('cancel')}
           </Button>
           <Button
             type="submit"
             className="px-10 font-bold"
             disabled={createMutation.isPending || updateMutation.isPending}
           >
-            {isEdit ? 'Save Changes' : 'Initialize Table'}
+            {isEdit ? tCommon('save') : t('addTable')}
           </Button>
         </div>
       </form>

@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
   Loader2,
   MapPin,
@@ -9,15 +10,38 @@ import {
   UserCheck,
   ClipboardCheck,
   Zap,
+  CreditCard,
+  Plus,
+  XCircle,
+  ChefHat,
+  PackageCheck,
+  Truck,
+  CheckCircle2,
 } from 'lucide-react';
-import { useOrderByIdQuery } from '../../../api/Queries/orderQuery';
+import {
+  useOrderByIdQuery,
+  useUpdateOrderStatusMutation,
+} from '../../../api/Queries/orderQuery';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import PayOrderModal from './PayOrderModal';
+import CancelOrderModal from './CancelOrderModal';
+import AddItemsModal from './AddItemsModal';
+import { formatOrderItemName } from '../lib/orderUtils';
+import OrderItemRow from './OrderItemRow';
+import BulkServeButton from './BulkServeButton';
 
 const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
-  const { data: response, isLoading, isError } = useOrderByIdQuery(orderId);
+  const { data: response, isLoading, isError, refetch } = useOrderByIdQuery(orderId);
+  const { mutate: updateStatus, isPending: isUpdatingStatus } =
+    useUpdateOrderStatusMutation();
 
-  const order = response?.data?.order || response;
+  const [isPayOpen, setIsPayOpen] = useState(false);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+
+  const order = (response as any)?.data?.order || response;
 
   if (isLoading) {
     return (
@@ -56,7 +80,7 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
       icon: <ShoppingBag className="h-4 w-4" />,
       label: 'Takeaway',
       theme: 'text-amber-600 bg-amber-50 border-amber-100',
-      detail: 'Pickup',
+      detail: 'Pickup Counter',
     },
   };
 
@@ -64,19 +88,23 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
     typeConfigs[order.orderType as keyof typeof typeConfigs] ||
     typeConfigs.dine_in;
 
+  const isPaid = order.paymentStatus === 'paid';
+  const isCanceled =
+    order.status === 'canceled' || order.status === 'cancelled';
+
   return (
-    <div className="flex flex-col h-full bg-slate-50/30 overflow-x-hidden">
+    <div className="flex flex-col h-full bg-muted/10 overflow-x-hidden">
       {/* 1. Header - Compact for Modal */}
-      <div className="bg-white px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20 shadow-sm">
+      <div className="bg-card px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20 shadow-2xs">
         <div className="flex items-center gap-2">
           <div className={`p-1.5 rounded-lg border ${config.theme}`}>
             {config.icon}
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-black tracking-tight text-slate-900 truncate">
+            <h2 className="text-base font-black tracking-tight text-foreground truncate">
               {order.orderNumber}
             </h2>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
               {new Date(order.placedAt || order.createdAt).toLocaleTimeString(
                 [],
                 { hour: '2-digit', minute: '2-digit' }
@@ -84,164 +112,303 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
             </p>
           </div>
         </div>
-        <Badge
-          className={`border-none px-3 py-0.5 font-black uppercase text-[9px] tracking-tighter ${
-            order.status === 'completed' ? 'bg-emerald-500' : 'bg-primary'
-          }`}
-        >
-          {order.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge
+            className={`border-none px-3 py-0.5 font-bold uppercase text-[9px] tracking-tight ${
+              order.status === 'completed'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-primary text-primary-foreground'
+            }`}
+          >
+            {order.status}
+          </Badge>
+        </div>
       </div>
 
-      <div className="p-4 space-y-4 max-w-full">
-        {/* 2. Top Info Grid - 2 Columns (Stable in Sidebar) */}
+      <div className="p-4 space-y-4 max-w-full overflow-y-auto">
+        {/* 2. State Transition Action Strip */}
+        <div className="bg-card p-3 rounded-xl border shadow-2xs space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Quick Actions
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {order.status === 'pending' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  updateStatus({ orderId: order._id, status: 'accepted' })
+                }
+                disabled={isUpdatingStatus}
+                className="h-8 text-xs font-semibold bg-primary"
+              >
+                Accept Order
+              </Button>
+            )}
+
+            {order.status === 'accepted' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  updateStatus({ orderId: order._id, status: 'preparing' })
+                }
+                disabled={isUpdatingStatus}
+                className="h-8 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+              >
+                <ChefHat className="h-3.5 w-3.5" />
+                Start Preparing
+              </Button>
+            )}
+
+            {order.status === 'preparing' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  updateStatus({ orderId: order._id, status: 'ready' })
+                }
+                disabled={isUpdatingStatus}
+                className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+              >
+                <PackageCheck className="h-3.5 w-3.5" />
+                Mark Ready
+              </Button>
+            )}
+
+            {order.status === 'ready' &&
+              order.orderType !== 'delivery' && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    updateStatus({ orderId: order._id, status: 'served' })
+                  }
+                  disabled={isUpdatingStatus}
+                  className="h-8 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  Mark Served
+                </Button>
+              )}
+
+            {order.status === 'ready' &&
+              order.orderType === 'delivery' && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    updateStatus({
+                      orderId: order._id,
+                      status: 'out_for_delivery',
+                    })
+                  }
+                  disabled={isUpdatingStatus}
+                  className="h-8 text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white gap-1"
+                >
+                  <Truck className="h-3.5 w-3.5" />
+                  Dispatch Order
+                </Button>
+              )}
+
+            {order.status === 'out_for_delivery' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  updateStatus({ orderId: order._id, status: 'delivered' })
+                }
+                disabled={isUpdatingStatus}
+                className="h-8 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                Mark Delivered
+              </Button>
+            )}
+
+            {!isPaid && !isCanceled && (
+              <Button
+                size="sm"
+                onClick={() => setIsPayOpen(true)}
+                className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Settle Payment
+              </Button>
+            )}
+
+            {isPaid && (order.status === 'served' || order.status === 'delivered') && (
+              <Button
+                size="sm"
+                onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
+                disabled={isUpdatingStatus}
+                className="h-8 text-xs font-semibold bg-slate-900 hover:bg-black dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white gap-1"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Complete Order
+              </Button>
+            )}
+
+            {['pending', 'accepted', 'preparing'].includes(order.status) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsAddItemsOpen(true)}
+                className="h-8 text-xs font-semibold gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Items
+              </Button>
+            )}
+
+            {!isCanceled && order.status !== 'completed' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsCancelOpen(true)}
+                className="h-8 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" />
+                Cancel
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* 3. Top Info Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white p-3 rounded-xl border shadow-sm">
-            <div className="flex items-center gap-1.5 text-slate-400 mb-2 border-b border-slate-50 pb-1">
+          <div className="bg-card p-3 rounded-xl border shadow-2xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground mb-2 border-b pb-1">
               <User className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">
+              <span className="text-[9px] font-bold uppercase tracking-wider">
                 Customer
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-900 truncate">
+            <p className="text-xs font-bold text-foreground truncate">
               {order.customerName || 'Walk-in'}
             </p>
-            <p className="text-[10px] text-slate-500 truncate">
+            <p className="text-[10px] text-muted-foreground truncate font-mono">
               {order.customerPhone || 'No Contact'}
             </p>
           </div>
 
-          <div className="bg-white p-3 rounded-xl border shadow-sm">
-            <div className="flex items-center gap-1.5 text-slate-400 mb-2 border-b border-slate-50 pb-1">
+          <div className="bg-card p-3 rounded-xl border shadow-2xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground mb-2 border-b pb-1">
               <Zap className="h-3 w-3" />
-              <span className="text-[9px] font-black uppercase tracking-wider">
+              <span className="text-[9px] font-bold uppercase tracking-wider">
                 Service
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-900">{config.label}</p>
-            <p className="text-[10px] text-slate-500 truncate">
+            <p className="text-xs font-bold text-foreground">{config.label}</p>
+            <p className="text-[10px] text-muted-foreground truncate">
               {config.detail}
             </p>
           </div>
         </div>
 
-        {/* 3. Staff Accountability Card - Full Width in Modal */}
-        <div className="bg-white p-4 rounded-xl border shadow-sm">
-          <div className="flex items-center gap-2 text-slate-400 border-b pb-2 mb-3">
+        {/* 4. Staff Accountability */}
+        <div className="bg-card p-4 rounded-xl border shadow-2xs">
+          <div className="flex items-center gap-2 text-muted-foreground border-b pb-2 mb-3">
             <UserCheck className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Staff Trace
+            <span className="text-[10px] font-bold uppercase tracking-wider">
+              Staff & Lifecycle Trace
             </span>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200">
-                  {order.placedBy?.firstName?.[0]}
-                  {order.placedBy?.lastName?.[0]}
-                </div>
-                <div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase leading-none mb-1">
-                    Placed By
-                  </p>
-                  <p className="text-xs font-bold text-slate-900">
-                    {order.placedBy?.firstName} {order.placedBy?.lastName}
-                  </p>
-                </div>
+          <div className="space-y-3">
+            {order.placedBy && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Order Placed By:</span>
+                <span className="font-semibold text-foreground">
+                  {order.placedBy?.firstName} {order.placedBy?.lastName}
+                </span>
               </div>
-              <p className="text-[9px] font-mono text-slate-300">
-                ID: {order.placedBy?._id?.slice(-4)}
-              </p>
-            </div>
+            )}
 
-            <div className="space-y-2 relative before:absolute before:left-[6px] before:top-2 before:bottom-2 before:w-[1px] before:bg-slate-100">
-              {[
-                {
-                  label: 'Accepted',
-                  time: order.acceptedAt,
-                  color: 'border-emerald-500',
-                },
-                {
-                  label: 'Ready',
-                  time: order.readyAt,
-                  color: 'border-amber-500',
-                },
-                {
-                  label: 'Completed',
-                  time: order.completedAt,
-                  color: 'border-blue-500',
-                },
-              ]
-                .filter((step) => step.time)
-                .map((step, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center relative pl-5"
-                  >
-                    <div
-                      className={`absolute left-0 h-3 w-3 rounded-full bg-white border-2 ${step.color} z-10`}
-                    />
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">
-                      {step.label}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-900">
-                      {new Date(step.time).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                ))}
+            {order.assignedWaiter && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Assigned Waiter:</span>
+                <span className="font-semibold text-foreground">
+                  {order.assignedWaiter?.fullName || order.assignedWaiter}
+                </span>
+              </div>
+            )}
+
+            {/* Timeline stamps */}
+            <div className="space-y-1.5 pt-2 border-t text-[11px]">
+              {order.placedAt && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Placed</span>
+                  <span className="font-mono">
+                    {new Date(order.placedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+              {order.acceptedAt && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Accepted</span>
+                  <span className="font-mono">
+                    {new Date(order.acceptedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+              {order.readyAt && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Ready</span>
+                  <span className="font-mono">
+                    {new Date(order.readyAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+              {order.completedAt && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Completed</span>
+                  <span className="font-mono">
+                    {new Date(order.completedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 4. Payment - Compact for Modal */}
+        {/* 5. Payment Details */}
         {order.paymentDetails && (
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <div className="px-4 py-2 bg-slate-50 border-b flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-                Payment Detail
+          <div className="bg-card rounded-xl border shadow-2xs overflow-hidden">
+            <div className="px-4 py-2 bg-muted/40 border-b flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                Payment Verification
               </span>
               <Badge
                 variant="outline"
-                className="text-[8px] h-4 bg-white font-bold"
+                className="text-[9px] uppercase font-bold"
               >
                 {order.paymentDetails.method}
               </Badge>
             </div>
             <div className="p-3 flex items-center gap-4">
-              <div className="flex-1 text-[11px] space-y-1">
+              <div className="flex-1 text-xs space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Bank</span>
-                  <span className="font-bold">
+                  <span className="text-muted-foreground">Bank/Provider</span>
+                  <span className="font-semibold text-foreground">
                     {order.paymentDetails.bankName || 'N/A'}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Paid At</span>
-                  <span className="font-bold truncate max-w-[80px]">
-                    {order.paymentDetails.paidAt
-                      ? new Date(
-                          order.paymentDetails.paidAt
-                        ).toLocaleTimeString()
-                      : '-'}
-                  </span>
-                </div>
+                {order.paymentDetails.paidAt && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Paid At</span>
+                    <span className="font-mono text-foreground">
+                      {new Date(order.paymentDetails.paidAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                )}
               </div>
               {order.paymentDetails.receiptImage && (
                 <a
                   href={order.paymentDetails.receiptImage}
                   target="_blank"
-                  className="h-10 w-16 rounded border overflow-hidden shrink-0 group relative"
+                  rel="noreferrer"
+                  className="h-12 w-20 rounded border overflow-hidden shrink-0 group relative bg-black/10 flex items-center justify-center"
                 >
                   <img
                     src={order.paymentDetails.receiptImage}
+                    alt="Receipt"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ExternalLink className="h-3 w-3 text-white" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ExternalLink className="h-4 w-4 text-white" />
                   </div>
                 </a>
               )}
@@ -249,59 +416,68 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
           </div>
         )}
 
-        {/* 5. Items Manifest */}
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 border-b flex items-center gap-2 text-slate-500">
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            <span className="text-[9px] font-black uppercase tracking-widest">
-              Order Manifest
-            </span>
+        {/* 6. Items Manifest */}
+        <div className="bg-card rounded-xl border shadow-2xs overflow-hidden">
+          <div className="px-4 py-3 bg-muted/40 border-b flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">
+                Order Manifest ({order.items?.length || 0} Items)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BulkServeButton orderId={order._id} items={order.items || []} size="sm" />
+              {['pending', 'accepted', 'preparing'].includes(order.status) && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddItemsOpen(true)}
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Item
+                </button>
+              )}
+            </div>
           </div>
-          <div className="divide-y max-h-[250px] overflow-y-auto">
+          <div className="divide-y max-h-[380px] overflow-y-auto">
             {order.items?.map((item: any, idx: number) => (
-              <div
-                key={idx}
-                className="p-3 flex justify-between items-center text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-primary">
-                    {item.quantity}×
-                  </span>
-                  <span className="font-bold text-slate-700 truncate max-w-[120px]">
-                    {item.name || item.menuItem?.name}
-                  </span>
-                </div>
-                <span className="font-mono font-bold text-slate-500">
-                  {item.totalPrice?.toLocaleString() ||
-                    (item.unitPrice * item.quantity).toLocaleString()}
-                </span>
-              </div>
+              <OrderItemRow
+                key={item._id || idx}
+                orderId={order._id}
+                item={item}
+                onRefresh={() => refetch()}
+              />
             ))}
           </div>
         </div>
 
-        {/* 6. Summary - Compact Final Section */}
-        <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-lg">
-          <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mb-2">
+        {/* 7. Bill Summary */}
+        <div className="bg-card rounded-2xl p-4 border text-foreground shadow-2xs space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>Subtotal</span>
-            <span>{(order.subtotal ?? 0).toLocaleString()} ETB</span>
+            <span>ETB {(order.subtotal ?? order.totalAmount ?? 0).toLocaleString()}</span>
           </div>
-          <Separator className="bg-white/5 mb-3" />
+          {order.deliveryFee ? (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Delivery Fee</span>
+              <span>ETB {order.deliveryFee.toLocaleString()}</span>
+            </div>
+          ) : null}
+          <Separator className="my-2" />
           <div className="flex justify-between items-end">
             <div>
-              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                Total Amount
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                Total Amount Due
               </p>
-              <p className="text-2xl font-black tracking-tighter leading-none">
-                {order.totalAmount?.toLocaleString()}{' '}
-                <span className="text-[10px] text-slate-500">ETB</span>
+              <p className="text-2xl font-black text-primary font-mono leading-none">
+                ETB {(order.totalAmount || 0).toLocaleString()}
               </p>
             </div>
             <div
-              className={`text-[8px] font-black px-2 py-0.5 rounded border ${
-                order.paymentStatus === 'paid'
-                  ? 'border-emerald-500 text-emerald-500'
-                  : 'border-rose-500 text-rose-500'
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
+                isPaid
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-600'
               }`}
             >
               {order.paymentStatus?.toUpperCase()}
@@ -309,6 +485,23 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <PayOrderModal
+        isOpen={isPayOpen}
+        onClose={() => setIsPayOpen(false)}
+        order={order}
+      />
+      <CancelOrderModal
+        isOpen={isCancelOpen}
+        onClose={() => setIsCancelOpen(false)}
+        order={order}
+      />
+      <AddItemsModal
+        isOpen={isAddItemsOpen}
+        onClose={() => setIsAddItemsOpen(false)}
+        order={order}
+      />
     </div>
   );
 };

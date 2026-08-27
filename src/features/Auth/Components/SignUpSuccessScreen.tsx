@@ -1,13 +1,6 @@
 // src/features/auth/components/SignUpSuccessScreen.tsx
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { CheckCircle2 } from 'lucide-react'; // Optional: nice success icon
+import { CheckCircle2, ArrowRight } from 'lucide-react';
 
 interface SignUpSuccessScreenProps {
   onLoginClick: () => void;
@@ -17,30 +10,30 @@ export function SignUpSuccessScreen({
   onLoginClick,
 }: SignUpSuccessScreenProps) {
   return (
-    <div className="h-screen flex items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md shadow-2xl">
-        <CardHeader className="text-center space-y-4">
-          {/* Optional success icon */}
-          <div className="mx-auto flex justify-center">
-            <CheckCircle2 className="w-16 h-16 text-green-600" />
-          </div>
+    <div className="min-h-screen w-screen flex items-center justify-center bg-[#F8FAFC] p-6">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200/80 p-8 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-600">
+          <CheckCircle2 className="w-10 h-10" />
+        </div>
 
-          <CardTitle className="text-3xl font-bold text-green-600">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
             Account Created Successfully!
-          </CardTitle>
+          </h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Welcome to TiruSolutions. Please check your email inbox to verify your account and begin managing your restaurant operations.
+          </p>
+        </div>
 
-          <CardDescription className="text-lg text-muted-foreground">
-            Welcome to your merchant portal. Please check your email to verify
-            your account and get started managing your restaurant.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="flex justify-center pt-6">
-          <Button onClick={onLoginClick} size="lg" className="w-full max-w-xs">
-            Go to Login
-          </Button>
-        </CardContent>
-      </Card>
+        <Button
+          onClick={onLoginClick}
+          className="w-full h-12 text-white font-semibold text-sm rounded-none transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          <span>Go to Login</span>
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
+

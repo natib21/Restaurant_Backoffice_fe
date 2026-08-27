@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 
 import { comboFormSchema, type ComboFormValues } from '../lib/Schemas';
+import { getLocalizedName, extractLocalizedPair } from '../lib/localizationUtils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -86,14 +87,15 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
   const [activeTab, setActiveTab] = useState<'basic' | 'scheduling' | 'items'>(
     'basic'
   );
+  const [langTab, setLangTab] = useState<'en' | 'am'>('en');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
 
   const form = useForm<ComboFormValues>({
     resolver: zodResolver(comboFormSchema) as any,
     defaultValues: {
-      name: '',
-      description: '',
+      name: { en: '', am: '' },
+      description: { en: '', am: '' },
       comboPrice: 0,
       isActive: true,
       priority: 0,
@@ -127,9 +129,12 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
           }))
         : [];
 
+      const namePair = extractLocalizedPair(initialData.name);
+      const descPair = extractLocalizedPair(initialData.description);
+
       form.reset({
-        name: initialData.name || '',
-        description: initialData.description || '',
+        name: namePair,
+        description: descPair,
         comboPrice: Number(initialData.comboPrice) || 0,
         isActive: Boolean(initialData.isActive ?? true),
         priority: Number(initialData.priority || 0),
@@ -182,20 +187,30 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
 
       const formData = new FormData();
 
-      formData.append('name', values.name.trim());
+      const nameEn = values.name.en.trim();
+      const nameAm = values.name.am?.trim();
+      formData.append('name', nameEn);
+      if (nameAm) {
+        formData.append('nameAm', nameAm);
+      }
+
       formData.append('comboPrice', String(values.comboPrice));
       formData.append('isActive', String(values.isActive));
       formData.append('priority', String(values.priority || 0));
       formData.append('maxPerOrder', String(values.maxPerOrder || 10));
-      if (values.description?.trim())
-        formData.append('description', values.description.trim());
+
+      const descEn = values.description?.en?.trim() || '';
+      const descAm = values.description?.am?.trim() || '';
+      if (descEn) {
+        formData.append('description', descEn);
+      }
+      if (descAm) {
+        formData.append('descriptionAm', descAm);
+      }
 
       formData.append('branches', JSON.stringify(values.branches));
-      values.tags.forEach((tag) => formData.append('tags', tag));
-      values.availableOnDays.forEach((day) =>
-        formData.append('availableOnDays', day)
-      );
-
+      formData.append('tags', JSON.stringify(values.tags || []));
+      formData.append('availableOnDays', JSON.stringify(values.availableOnDays || []));
       formData.append('items', JSON.stringify(values.items));
       formData.append('timeSlots', JSON.stringify(values.timeSlots));
 
@@ -207,13 +222,11 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
       ) {
         formData.append('image', values.image);
       }
-      console.log('image instanceof File:', values.image instanceof File);
-      console.log('image value:', values.image);
 
       if (isEdit && initialData?._id) {
         await updateMutation.mutateAsync({
           id: initialData._id,
-          data: formData,
+          formData,
         });
         toast.success('Combo updated successfully');
       } else {
@@ -278,23 +291,105 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
             {/* Basic Info */}
             <TabsContent value="basic" className="space-y-6 pt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
                   <CardTitle>General Information</CardTitle>
+                  <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setLangTab('en')}
+                      className={`px-3 py-1 rounded-md transition-all ${
+                        langTab === 'en'
+                          ? 'bg-background shadow-xs text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      English (EN)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLangTab('am')}
+                      className={`px-3 py-1 rounded-md transition-all ${
+                        langTab === 'am'
+                          ? 'bg-background shadow-xs text-foreground'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      አማርኛ (AM)
+                    </button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Combo Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Family Pack" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {langTab === 'en' ? (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="name.en"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Offer Name (English) *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g. Family Feast Combo" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="description.en"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description (English)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. A hearty feast for the entire family"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="name.am"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>የልዩ ቅናሽ ስም (አማርኛ)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="ምሳሌ፦ የቤተሰብ ኮምቦ"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="description.am"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>መግለጫ (አማርኛ)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="ምሳሌ፦ ለመላው ቤተሰብ የሚሆን የተሟላ ቅናሽ"
+                                {...field}
+                                value={field.value || ''}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
 
                   <FormField
                     control={form.control}
@@ -541,19 +636,30 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
                         <CommandList>
                           <CommandEmpty>No items found.</CommandEmpty>
                           <CommandGroup>
-                            {menuItems.map((item: any) => (
-                              <CommandItem
-                                key={item._id}
-                                onSelect={() =>
-                                  appendItem({
-                                    menuItem: item._id,
-                                    quantity: 1,
-                                  })
-                                }
-                              >
-                                {item.name}
-                              </CommandItem>
-                            ))}
+                            {menuItems.map((item: any) => {
+                              const enName = getLocalizedName(item, 'en', 'Unnamed Item');
+                              const amName = getLocalizedName(item, 'am');
+                              return (
+                                <CommandItem
+                                  key={item._id}
+                                  value={`${enName} ${amName || ''}`}
+                                  onSelect={() =>
+                                    appendItem({
+                                      menuItem: item._id,
+                                      quantity: 1,
+                                    })
+                                  }
+                                  className="flex items-center justify-between"
+                                >
+                                  <span className="font-medium">{enName}</span>
+                                  {amName && (
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      {amName}
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
                           </CommandGroup>
                         </CommandList>
                       </Command>
@@ -565,14 +671,27 @@ const ComboFormPage: React.FC<ComboFormPageProps> = ({
                       const menuItem = menuItems.find(
                         (m: any) => m._id === field.menuItem
                       );
+                      const enName = menuItem
+                        ? getLocalizedName(menuItem, 'en', 'Unknown Item')
+                        : 'Unknown Item';
+                      const amName = menuItem
+                        ? getLocalizedName(menuItem, 'am')
+                        : '';
                       return (
                         <div
                           key={field.id}
                           className="flex items-center justify-between p-3 border rounded-md"
                         >
-                          <span className="font-medium">
-                            {menuItem?.name || 'Unknown Item'}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">
+                              {enName}
+                            </span>
+                            {amName && (
+                              <span className="text-xs text-muted-foreground">
+                                {amName}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3">
                             <Input
                               type="number"

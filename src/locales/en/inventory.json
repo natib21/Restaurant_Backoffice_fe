@@ -1,0 +1,38 @@
+{
+  "inventory": "Inventory Management",
+  "stockOverview": "Stock Overview",
+  "stockOverviewSubtitle": "Monitor ingredient levels, low stock alerts, and raw material usage.",
+  "ingredients": "Raw Ingredients & Items",
+  "ingredientsSubtitle": "Manage raw stock items, unit measures, reorder levels, and cost prices.",
+  "recipes": "Recipe Costing & Ingredients",
+  "recipesSubtitle": "Link raw ingredients to menu items for precise cost analysis and stock deducts.",
+  "purchaseOrders": "Purchase Orders",
+  "purchaseOrdersSubtitle": "Create and manage stock replenishment orders to suppliers.",
+  "suppliers": "Suppliers & Vendors",
+  "suppliersSubtitle": "Maintain supplier profiles, contact information, and delivery terms.",
+  "wasteTracking": "Waste & Loss Tracking",
+  "wasteTrackingSubtitle": "Log damaged, expired, or spilled stock to maintain accurate variance logs.",
+
+  "itemName": "Ingredient / Raw Item",
+  "category": "Category",
+  "currentStock": "Current Stock",
+  "unit": "Unit",
+  "reorderPoint": "Reorder Point",
+  "costPerUnit": "Cost / Unit",
+  "supplier": "Supplier",
+  "status": "Status",
+  "inStock": "In Stock",
+  "lowStock": "Low Stock Alert",
+  "outOfStock": "Out of Stock",
+
+  "addIngredient": "Add Ingredient",
+  "editIngredient": "Edit Ingredient",
+  "logStockAdjustment": "Log Stock Adjustment",
+  "createPurchaseOrder": "Create Purchase Order",
+  "addSupplier": "Add Supplier",
+  "logWaste": "Log Waste Item",
+
+  "ingredientSavedSuccess": "Ingredient saved successfully",
+  "poCreatedSuccess": "Purchase order created successfully",
+  "wasteLoggedSuccess": "Waste item logged successfully"
+}

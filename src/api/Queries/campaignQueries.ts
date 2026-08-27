@@ -1,16 +1,13 @@
+// src/api/Queries/campaignQueries.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import apiClient from '../api-client';
 
-// Campaign Types
 export interface CampaignAudience {
-  loyaltyTier?: string[]; // ['bronze', 'silver', 'gold']
+  tags?: string[];
+  loyaltyTier?: ('bronze' | 'silver' | 'gold' | 'platinum' | string)[];
+  minTotalOrders?: number;
   minSpent?: number;
   maxSpent?: number;
-  orderCount?: number;
-  tags?: string[];
-  lastSeenDays?: number; // Days since last order
-  excludeTags?: string[];
-  customerGroups?: string[]; // Segment IDs
 }
 
 export interface CampaignCreateRequest {
@@ -19,9 +16,16 @@ export interface CampaignCreateRequest {
   imageUrl?: string;
   audience?: CampaignAudience;
   branch?: string;
-  channels?: string[]; // ['email', 'sms', 'in-app', 'push']
-  scheduledFor?: string; // ISO date string
-  expiresAt?: string; // ISO date string
+}
+
+export interface CampaignStats {
+  audienceSize?: number;
+  sentCount?: number;
+  failedCount?: number;
+  totalRecipients?: number;
+  delivered?: number;
+  opened?: number;
+  clicked?: number;
 }
 
 export interface Campaign {
@@ -31,140 +35,183 @@ export interface Campaign {
   imageUrl?: string;
   audience?: CampaignAudience;
   branch?: string;
-  channels?: string[];
-  status: 'draft' | 'scheduled' | 'sent' | 'completed' | 'cancelled';
-  createdBy: string;
-  createdAt: string;
-  scheduledFor?: string;
-  expiresAt?: string;
+  status: 'draft' | 'sending' | 'sent' | 'failed' | 'scheduled';
+  stats?: CampaignStats;
   sentAt?: string;
-  stats?: {
-    totalRecipients: number;
-    delivered: number;
-    opened: number;
-    clicked: number;
-  };
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
 }
 
 export interface CampaignListResponse {
-  status: string;
   results?: number;
-  data: {
-    campaigns: Campaign[];
-  };
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
+  campaigns?: Campaign[];
+  data?: {
+    campaigns?: Campaign[];
   };
 }
 
-export interface AudiencePreviewResponse {
-  status: string;
-  data: {
-    count: number;
-    preview: Array<{
-      _id: string;
-      fullName: string;
-      phone: string;
-      email?: string;
-      loyaltyTier?: string;
-      lastSpent?: number;
-    }>;
+export interface PreviewAudienceResponse {
+  audienceSize?: number;
+  count?: number;
+  data?: {
+    count?: number;
+    preview?: any[];
   };
 }
 
-// Create campaign
+// GET /v1/campaigns
+export const fetchCampaignsList = async (): Promise<Campaign[]> => {
+  try {
+    const response = await apiClient.get<any>('/v1/campaigns');
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response.data?.campaigns)) return response.data.campaigns;
+    if (Array.isArray(response.data?.data?.campaigns)) return response.data.data.campaigns;
+    return [];
+  } catch (err) {
+    const response = await apiClient.get<any>('/campaigns');
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response.data?.campaigns)) return response.data.campaigns;
+    if (Array.isArray(response.data?.data?.campaigns)) return response.data.data.campaigns;
+    return [];
+  }
+};
+
+export const useGetCampaignsList = () => {
+  return useQuery({
+    queryKey: ['campaignsList'],
+    queryFn: fetchCampaignsList,
+    refetchInterval: (query) => {
+      const campaigns = query.state.data;
+      const hasSending = campaigns?.some((c) => c.status === 'sending');
+      return hasSending ? 5000 : false;
+    },
+  });
+};
+
+// GET /v1/campaigns/:id
+export const fetchCampaignDetails = async (campaignId: string): Promise<Campaign> => {
+  try {
+    const response = await apiClient.get<any>(`/v1/campaigns/${campaignId}`);
+    if (response.data?.campaign) return response.data.campaign;
+    if (response.data?.data) return response.data.data;
+    return response.data;
+  } catch (err) {
+    const response = await apiClient.get<any>(`/campaigns/${campaignId}`);
+    if (response.data?.campaign) return response.data.campaign;
+    if (response.data?.data) return response.data.data;
+    return response.data;
+  }
+};
+
+export const useGetCampaignDetails = (campaignId?: string | null) => {
+  return useQuery({
+    queryKey: ['campaignDetails', campaignId],
+    queryFn: () => fetchCampaignDetails(campaignId!),
+    enabled: !!campaignId,
+    refetchInterval: (query) => {
+      const campaign = query.state.data;
+      if (campaign?.status === 'sending') {
+        return 2000; // Poll every 2 seconds while status is 'sending'
+      }
+      return false;
+    },
+  });
+};
+
+// POST /v1/campaigns
+export const createCampaign = async (data: CampaignCreateRequest): Promise<Campaign> => {
+  try {
+    const response = await apiClient.post<any>('/v1/campaigns', data);
+    return response.data?.campaign || response.data?.data || response.data;
+  } catch (err) {
+    const response = await apiClient.post<any>('/campaigns', data);
+    return response.data?.campaign || response.data?.data || response.data;
+  }
+};
+
 export const useCreateCampaign = () => {
   const queryClient = useQueryClient();
-  
   return useMutation({
-    mutationFn: async (data: CampaignCreateRequest) => {
-      const response = await api.post('/v1/campaigns', data);
-      return response.data;
-    },
+    mutationFn: createCampaign,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaignsList'] });
     },
   });
 };
 
-// List campaigns
-export const useGetCampaignsList = (params?: { status?: string; branch?: string; page?: number; limit?: number }) => {
-  return useQuery<CampaignListResponse>({
-    queryKey: ['campaignsList', params],
-    queryFn: async () => {
-      const response = await api.get('/v1/campaigns', { params });
-      return response.data;
-    },
-  });
+// POST /v1/campaigns/:id/preview-audience
+export const previewCampaignAudience = async (
+  campaignId: string,
+  audience?: CampaignAudience
+): Promise<number> => {
+  try {
+    const response = await apiClient.post<any>(
+      `/v1/campaigns/${campaignId}/preview-audience`,
+      { audience }
+    );
+    return (
+      response.data?.audienceSize ??
+      response.data?.count ??
+      response.data?.data?.count ??
+      0
+    );
+  } catch (err) {
+    const response = await apiClient.post<any>(
+      `/campaigns/${campaignId}/preview-audience`,
+      { audience }
+    );
+    return (
+      response.data?.audienceSize ??
+      response.data?.count ??
+      response.data?.data?.count ??
+      0
+    );
+  }
 };
 
-// Get campaign by ID
-export const useGetCampaignDetails = (campaignId?: string) => {
-  return useQuery<{ status: string; data: Campaign }>({
-    queryKey: ['campaignDetails', campaignId],
-    queryFn: async () => {
-      if (!campaignId) throw new Error('Campaign ID is required');
-      const response = await api.get(`/v1/campaigns/${campaignId}`);
-      return response.data;
-    },
-    enabled: !!campaignId,
-  });
-};
-
-// Preview audience
 export const usePreviewCampaignAudience = () => {
   return useMutation({
-    mutationFn: async ({ campaignId, audience }: { campaignId: string; audience: CampaignAudience }) => {
-      const response = await api.post(`/v1/campaigns/${campaignId}/preview-audience`, { audience });
-      return response.data as AudiencePreviewResponse;
-    },
+    mutationFn: ({ campaignId, audience }: { campaignId: string; audience?: CampaignAudience }) =>
+      previewCampaignAudience(campaignId, audience),
   });
 };
 
-// Send campaign
+// POST /v1/campaigns/:id/send
+export const sendCampaign = async (campaignId: string): Promise<Campaign> => {
+  try {
+    const response = await apiClient.post<any>(`/v1/campaigns/${campaignId}/send`);
+    return response.data?.campaign || response.data?.data || response.data;
+  } catch (err) {
+    const response = await apiClient.post<any>(`/campaigns/${campaignId}/send`);
+    return response.data?.campaign || response.data?.data || response.data;
+  }
+};
+
 export const useSendCampaign = () => {
   const queryClient = useQueryClient();
-  
   return useMutation({
-    mutationFn: async (campaignId: string) => {
-      const response = await api.post(`/v1/campaigns/${campaignId}/send`);
-      return response.data;
-    },
+    mutationFn: sendCampaign,
     onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: ['campaignsList'] });
       queryClient.invalidateQueries({ queryKey: ['campaignDetails', campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaignsList'] });
     },
   });
 };
 
-// Update campaign
-export const useUpdateCampaign = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ campaignId, data }: { campaignId: string; data: Partial<CampaignCreateRequest> }) => {
-      const response = await api.patch(`/v1/campaigns/${campaignId}`, data);
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['campaignDetails', variables.campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaignsList'] });
-    },
-  });
+// DELETE /v1/campaigns/:id
+export const deleteCampaign = async (campaignId: string): Promise<void> => {
+  try {
+    await apiClient.delete(`/v1/campaigns/${campaignId}`);
+  } catch (err) {
+    await apiClient.delete(`/campaigns/${campaignId}`);
+  }
 };
 
-// Delete campaign
 export const useDeleteCampaign = () => {
   const queryClient = useQueryClient();
-  
   return useMutation({
-    mutationFn: async (campaignId: string) => {
-      const response = await api.delete(`/v1/campaigns/${campaignId}`);
-      return response.data;
-    },
+    mutationFn: deleteCampaign,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaignsList'] });
     },

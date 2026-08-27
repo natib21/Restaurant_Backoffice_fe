@@ -17,21 +17,39 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { ShoppingBag, ReceiptCent } from 'lucide-react';
+import { ShoppingBag, ReceiptCent, GitFork, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 export function OrderingSection({
   form,
 }: {
   form: UseFormReturn<SettingsFormValues>;
 }) {
+  const navigate = useNavigate();
   return (
     <Card className="border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <ShoppingBag className="h-5 w-5 text-primary" />
-          Ordering & Payment
-        </CardTitle>
-        <CardDescription>Control taxes and service flows</CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              Ordering & Payment
+            </CardTitle>
+            <CardDescription>Control taxes, channel availability, and kitchen service flows</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/orders/flow-config')}
+            className="text-xs h-8 gap-1.5 border-primary/30 text-primary hover:bg-primary/5 self-start sm:self-auto"
+          >
+            <GitFork className="h-3.5 w-3.5" />
+            Configure Channel Routing Flow
+            <ArrowRight className="h-3 w-3" />
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="grid gap-8 md:grid-cols-2 px-0">

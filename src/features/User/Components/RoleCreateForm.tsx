@@ -31,6 +31,12 @@ import {
   useCreateMerchantRoleMutation,
   useUpdateMerchantRoleMutation,
 } from '../../../api/Queries/merchantQueries';
+import { useTranslation } from '@/locales/i18n';
+import {
+  getTaskDomain,
+  getMethodStyle,
+  PERMISSION_DOMAINS,
+} from '../lib/rolePermissionUtils';
 
 type RoleFormValues = {
   name: string;
@@ -40,7 +46,7 @@ type RoleFormValues = {
 
 interface RoleFormProps {
   role?: any;
-  tasks: { _id: string; name: string; endpoint?: string; method?: string }[];
+  tasks: { _id: string; name: string; endpoint?: string; method?: string; description?: string }[];
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -65,7 +71,7 @@ const TEMPLATES = [
   {
     label: 'Manager',
     icon: '💼',
-    keys: ['merchants/users', 'merchants/roles', 'branch', 'stats'],
+    keys: ['merchants/users', 'merchants/roles', 'branch', 'stats', 'report'],
   },
 ];
 
@@ -75,7 +81,10 @@ const RoleForm: React.FC<RoleFormProps> = ({
   onSuccess,
   onCancel,
 }) => {
+  const { t } = useTranslation('team');
+  const { t: tCommon } = useTranslation('common');
   const [searchTerm, setSearchTerm] = useState('');
+  const [methodFilter, setMethodFilter] = useState('all');
   const isEditMode = !!role;
 
   const form = useForm<RoleFormValues>({
@@ -89,44 +98,16 @@ const RoleForm: React.FC<RoleFormProps> = ({
 
   /* 1. Logic: Group Tasks by Business Domain */
   const groupedTasks = useMemo(() => {
-    const groups: Record<string, typeof tasks> = {
-      'Staff & Access': [],
-      'Menu & Catalog': [],
-      'Tables & QR': [],
-      'Orders & Service': [],
-      'Branch Control': [],
-      General: [],
-    };
+    const groups: Record<string, typeof tasks> = {};
+
+    PERMISSION_DOMAINS.forEach((domain) => {
+      groups[domain] = [];
+    });
 
     tasks.forEach((task) => {
-      const endpoint = task.endpoint || '';
-      const name = task.name.toLowerCase();
-
-      if (
-        endpoint.includes('/merchant/users') ||
-        endpoint.includes('/merchants/users') ||
-        endpoint.includes('/merchant/roles') ||
-        endpoint.includes('/merchants/roles')
-      ) {
-        groups['Staff & Access'].push(task);
-      } else if (
-        endpoint.includes('/menu') ||
-        endpoint.includes('/menu-group') ||
-        endpoint.includes('/menuGroup') ||
-        endpoint.includes('/combo') ||
-        endpoint.includes('/menuCombo') ||
-        endpoint.includes('/branchGroup')
-      ) {
-        groups['Menu & Catalog'].push(task);
-      } else if (endpoint.includes('/table')) {
-        groups['Tables & QR'].push(task);
-      } else if (endpoint.includes('/order') || name.includes('assignment')) {
-        groups['Orders & Service'].push(task);
-      } else if (endpoint.includes('/branch') || name.includes('kyc')) {
-        groups['Branch Control'].push(task);
-      } else {
-        groups['General'].push(task);
-      }
+      const domain = getTaskDomain(task);
+      if (!groups[domain]) groups[domain] = [];
+      groups[domain].push(task);
     });
 
     return Object.fromEntries(
@@ -281,27 +262,67 @@ const RoleForm: React.FC<RoleFormProps> = ({
 
           {/* Section 3: Permission Grid */}
           <section className="space-y-6">
-            <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10 ">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sticky top-0 bg-background/95 backdrop-blur z-10 py-2">
               <Header
                 icon={<Layers className="h-4 w-4" />}
                 title="Access Capabilities"
               />
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Filter permissions..."
-                  className="pl-9 h-9 text-xs bg-muted/50 border-none shadow-none"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative w-48 sm:w-56">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter permissions..."
+                    className="pl-9 h-8 text-xs bg-muted/50 border-none shadow-none"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
+            </div>
+
+            {/* Method Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase mr-1">Method:</span>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'GET', label: 'GET (Read)' },
+                { key: 'POST', label: 'POST (Create)' },
+                { key: 'PUT', label: 'PUT / PATCH (Modify)' },
+                { key: 'DELETE', label: 'DELETE (Remove)' },
+              ].map((m) => {
+                const isActive = methodFilter === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setMethodFilter(m.key)}
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                      isActive
+                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="space-y-8">
               {Object.entries(groupedTasks).map(([groupName, groupTasks]) => {
-                const visibleTasks = groupTasks.filter((t) =>
-                  t.name.toLowerCase().includes(searchTerm.toLowerCase())
-                );
+                const visibleTasks = groupTasks.filter((t) => {
+                  const matchSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (t.endpoint || '').toLowerCase().includes(searchTerm.toLowerCase());
+                  if (!matchSearch) return false;
+
+                  const method = (t.method || 'GET').toUpperCase();
+                  if (methodFilter === 'GET' && method !== 'GET') return false;
+                  if (methodFilter === 'POST' && method !== 'POST') return false;
+                  if (methodFilter === 'PUT' && method !== 'PUT' && method !== 'PATCH') return false;
+                  if (methodFilter === 'DELETE' && method !== 'DELETE') return false;
+
+                  return true;
+                });
                 if (visibleTasks.length === 0) return null;
 
                 const groupIds = visibleTasks.map((t) => t._id);
@@ -319,7 +340,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
                         </h4>
                         <Badge
                           variant="secondary"
-                          className="text-[9px] px-1 h-4"
+                          className="text-[9px] px-1.5 h-4"
                         >
                           {visibleTasks.length}
                         </Badge>
@@ -338,6 +359,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {visibleTasks.map((task) => {
                         const isChecked = selectedTasks.includes(task._id);
+                        const methodStyle = getMethodStyle(task.method);
                         return (
                           <label
                             key={task._id}
@@ -361,14 +383,22 @@ const RoleForm: React.FC<RoleFormProps> = ({
                               }}
                             />
                             <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-xs font-bold truncate ${isChecked ? 'text-primary' : 'text-foreground'}`}
-                              >
-                                {task.name}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <p
+                                  className={`text-xs font-bold truncate ${isChecked ? 'text-primary' : 'text-foreground'}`}
+                                >
+                                  {task.name}
+                                </p>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[8px] font-mono font-bold px-1 py-0 rounded ${methodStyle.badgeClass}`}
+                                >
+                                  {task.method || 'GET'}
+                                </Badge>
+                              </div>
                               {task.endpoint && (
-                                <p className="text-[9px] font-mono opacity-50 truncate">
-                                  {task.method} {task.endpoint}
+                                <p className="text-[9px] font-mono opacity-50 truncate mt-0.5">
+                                  {task.endpoint}
                                 </p>
                               )}
                             </div>
@@ -390,7 +420,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
         <div className="px-8 py-5 border-t bg-background flex justify-between items-center shadow-lg">
           <div className="hidden sm:block">
             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-              Selected Permissions
+              {t('taskPermissions')}
             </p>
             <p className="text-sm font-black text-primary">
               {selectedTasks.length} / {tasks.length}
@@ -403,7 +433,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
               onClick={onCancel}
               className="font-bold text-xs uppercase"
             >
-              Discard
+              {tCommon('cancel')}
             </Button>
             <Button
               type="submit"
@@ -412,10 +442,10 @@ const RoleForm: React.FC<RoleFormProps> = ({
               className="font-black px-10 rounded-full shadow-lg active:scale-95 transition-all"
             >
               {isPending
-                ? 'Saving...'
+                ? t('savingRole')
                 : isEditMode
-                  ? 'Save Changes'
-                  : 'Create Role'}
+                  ? tCommon('save')
+                  : t('saveRole')}
             </Button>
           </div>
         </div>

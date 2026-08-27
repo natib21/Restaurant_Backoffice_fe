@@ -1,0 +1,18 @@
+{
+  "kycTitle": "Merchant Verification & KYC",
+  "kycSubtitle": "Complete official trade documentation to unlock full merchant features.",
+  "businessVerification": "Business Identity Verification",
+  "verificationStatus": "Verification Status",
+  "unverified": "Unverified",
+  "pendingReview": "Pending Review",
+  "verified": "Officially Verified",
+  "rejected": "Verification Rejected",
+  "tinNumber": "TIN Number (Taxpayer ID)",
+  "tradeLicense": "Trade License Document",
+  "uploadDocument": "Upload Official Document",
+  "documentAccepted": "Document uploaded and under review.",
+  "submitForVerification": "Submit for Verification",
+  "submitting": "Submitting...",
+
+  "kycSubmittedSuccess": "Documents submitted for verification successfully"
+}

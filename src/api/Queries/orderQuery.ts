@@ -7,13 +7,35 @@ import type { AxiosError } from 'axios';
    TYPES
 ====================================================== */
 
+export type ItemStatus = 
+  | 'pending' 
+  | 'in_progress' 
+  | 'ready' 
+  | 'served' 
+  | 'void';
+
+export type ServedVia = 'auto' | 'manual';
+
 export interface OrderItem {
-  menuItem: string | { _id: string; name: string; image?: string };
+  _id?: string;
+  menuItem: string | { _id: string; name: string; image?: string; [key: string]: any };
   name: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
   notes?: string;
+  modifiers?: Array<{ name: string; price: number }>;
+  // Item status workflow fields
+  requiresKitchen?: boolean;
+  status?: ItemStatus;
+  servedAt?: string | null;
+  servedBy?: { _id?: string; fullName?: string; firstName?: string; lastName?: string } | string | null;
+  servedVia?: ServedVia | null;
+  voidedAt?: string | null;
+  voidedBy?: { _id?: string; fullName?: string } | string | null;
+  voidReason?: string | null;
+  replacementItemId?: string | null;
+  replacedItemId?: string | null;
 }
 
 export interface Order {
@@ -36,8 +58,11 @@ export interface Order {
     | 'preparing'
     | 'ready'
     | 'served'
+    | 'out_for_delivery'
+    | 'delivered'
     | 'completed'
-    | 'canceled';
+    | 'canceled'
+    | 'cancelled';
   paymentStatus: 'unpaid' | 'paid';
   placedAt: string;
   placedBy: { firstName: string; lastName: string };
@@ -79,14 +104,23 @@ export interface StaffCreateOrderPayload {
   branchId: string | null;
   orderType: 'dine_in' | 'takeaway' | 'delivery' | null;
   tableId?: string | null;
+  tableNumber?: string | null;
   customerName?: string;
   customerPhone?: string;
+  deliveryAddress?: string;
+  deliveryFee?: number;
   items: {
     menuItemId: string;
     quantity: number;
     notes?: string;
+    unitPrice?: number;
+    totalPrice?: number;
+    name?: string;
   }[];
   subtotal: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  totalAmount?: number;
   notes?: string;
 }
 
@@ -127,6 +161,10 @@ const orderKeys = {
   served: () => [...orderKeys.all, 'served'] as const,
   completed: () => [...orderKeys.all, 'completed'] as const,
   canceled: () => [...orderKeys.all, 'canceled'] as const,
+  allDbOrders: (filters?: Record<string, any>) =>
+    [...orderKeys.all, 'all-db', filters ?? 'all'] as const,
+  byBranchAll: (branchId: string, filters?: Record<string, any>) =>
+    [...orderKeys.all, 'byBranchAll', branchId, filters ?? 'all'] as const,
   byNumber: (orderNumber: string) =>
     [...orderKeys.all, 'byNumber', orderNumber] as const,
   byBranch: (branchId: string) =>
@@ -142,11 +180,66 @@ const orderKeys = {
 
 // -------- STAFF --------
 
-const fetchOrders = async (
+const fetchActiveOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
   const { data } = await api.get('/v1/order/active', { params });
   return parseOrdersResponse(data);
+};
+
+const fetchAllOrdersResponse = async (
+  params?: Record<string, any>
+): Promise<OrdersResponse> => {
+  try {
+    const { data } = await api.get('/v1/order', { params });
+    const parsed = parseOrdersResponse(data);
+    if (parsed.orders && parsed.orders.length > 0) {
+      return parsed;
+    }
+  } catch (err: any) {
+    console.debug('Direct /v1/order query fallback', err);
+  }
+
+  // Fallback / Aggregation: Query both active and completed orders to guarantee all statuses are fetched
+  try {
+    const [activeRes, completedRes] = await Promise.allSettled([
+      api.get('/v1/order/active', { params }),
+      api.get('/v1/order/completed', { params }),
+    ]);
+
+    const activeOrders: Order[] =
+      activeRes.status === 'fulfilled'
+        ? (activeRes.value.data?.data?.orders ?? activeRes.value.data?.orders ?? [])
+        : [];
+    const completedOrders: Order[] =
+      completedRes.status === 'fulfilled'
+        ? (completedRes.value.data?.data?.orders ?? completedRes.value.data?.orders ?? [])
+        : [];
+
+    const orderMap = new Map<string, Order>();
+    [...activeOrders, ...completedOrders].forEach((ord) => {
+      const id = ord._id || (ord as any).id;
+      if (id) {
+        orderMap.set(id, ord);
+      }
+    });
+
+    const allOrders = Array.from(orderMap.values());
+    return {
+      orders: allOrders,
+      total: allOrders.length,
+      count: allOrders.length,
+    };
+  } catch (fallbackError) {
+    const { data } = await api.get('/v1/order/active', { params });
+    return parseOrdersResponse(data);
+  }
+};
+
+const fetchOrders = async (
+  params?: Record<string, any>
+): Promise<OrdersResponse> => {
+  return fetchActiveOrdersResponse(params);
 };
 
 const fetchBranchOrders = async (
@@ -156,10 +249,17 @@ const fetchBranchOrders = async (
   return fetchOrders({ ...params, branchId });
 };
 
+const fetchBranchAllOrders = async (
+  branchId: string,
+  params?: Record<string, any>
+): Promise<OrdersResponse> => {
+  return fetchAllOrdersResponse({ ...params, branchId });
+};
+
 const fetchActiveOrders = async (
   params?: Record<string, any>
 ): Promise<Order[]> => {
-  const response = await fetchOrders(params);
+  const response = await fetchActiveOrdersResponse(params);
   return response.orders;
 };
 
@@ -168,7 +268,7 @@ const fetchStatusOrders = async (
   params?: Record<string, any>
 ): Promise<Order[]> => {
   const { data } = await api.get(`/v1/order/${status}`, { params });
-  return data.data?.orders ?? [];
+  return data.data?.orders ?? data.orders ?? [];
 };
 
 const fetchCompletedOrders = async (
@@ -179,13 +279,19 @@ const fetchCompletedOrders = async (
 }> => {
   const { data } = await api.get('/v1/order/completed', { params });
   return {
-    orders: data.data?.orders ?? [],
-    summary: data.summary ?? data.data?.summary,
+    orders: data.data?.orders ?? data.orders ?? [],
+    summary: data.summary ?? data.data?.summary ?? {
+      totalRevenue: 0,
+      totalOrders: 0,
+      paidOrders: 0,
+      avgOrderValue: 0,
+    },
   };
 };
 
 const fetchOrderByNumber = async (orderNumber: string): Promise<Order> => {
-  const { data } = await api.get(`/v1/order/number/${orderNumber}`);
+  const cleanNumber = orderNumber.replace(/^#/, '');
+  const { data } = await api.get(`/v1/order/number/${cleanNumber}`);
   return parseOrder(data);
 };
 
@@ -197,11 +303,33 @@ const fetchOrderById = async (orderId: string): Promise<Order> => {
 const updateOrderStatus = async ({
   orderId,
   status,
+  reason,
+  assignedWaiter,
+  assignedKitchenStaff,
 }: {
   orderId: string;
   status: Order['status'];
+  reason?: string;
+  assignedWaiter?: string;
+  assignedKitchenStaff?: string;
 }): Promise<Order> => {
-  const { data } = await api.patch(`/v1/order/${orderId}/status`, { status });
+  const { data } = await api.patch(`/v1/order/${orderId}/status`, {
+    status,
+    reason,
+    assignedWaiter,
+    assignedKitchenStaff,
+  });
+  return parseOrder(data);
+};
+
+const cancelOrder = async ({
+  orderId,
+  reason,
+}: {
+  orderId: string;
+  reason?: string;
+}): Promise<Order> => {
+  const { data } = await api.patch(`/v1/order/${orderId}/cancel`, { reason });
   return parseOrder(data);
 };
 
@@ -223,16 +351,50 @@ const createStaffOrder = async (
   return parseOrder(data);
 };
 
+// Kitchen / KDS API functions
+const fetchKitchenTicketsForOrder = async (orderId: string): Promise<any[]> => {
+  const { data } = await api.get(`/v1/kitchen/orders/${orderId}/tickets`);
+  return data.data?.tickets ?? [];
+};
+
+const fetchKitchenStations = async (): Promise<any[]> => {
+  const { data } = await api.get('/v1/kitchen/stations');
+  return data.data?.stations ?? [];
+};
+
+const fetchKitchenTickets = async (params?: Record<string, any>): Promise<any[]> => {
+  const { data } = await api.get('/v1/kitchen/tickets', { params });
+  return data.data?.tickets ?? [];
+};
+
+const updateKitchenTicketStatus = async ({
+  ticketId,
+  action,
+  reason,
+}: {
+  ticketId: string;
+  action: 'accept' | 'start' | 'ready' | 'cancel' | 'status';
+  status?: string;
+  reason?: string;
+}): Promise<any> => {
+  if (action === 'status') {
+    const { data } = await api.patch(`/v1/kitchen/tickets/${ticketId}/status`, { status: action, reason });
+    return data.data?.ticket ?? data;
+  }
+  const { data } = await api.patch(`/v1/kitchen/tickets/${ticketId}/${action}`, { reason });
+  return data.data?.ticket ?? data;
+};
+
 // -------- CUSTOMER --------
 
 const fetchMyActiveOrder = async (): Promise<Order | null> => {
   const { data } = await api.get('/v1/order/my-active');
-  return data.data.order;
+  return data.data?.order ?? null;
 };
 
 const fetchMyOrderHistory = async (): Promise<Order[]> => {
   const { data } = await api.get('/v1/order/my-history');
-  return data.data.orders;
+  return data.data?.orders ?? [];
 };
 
 /* ======================================================
@@ -243,8 +405,37 @@ export const useOrdersQuery = (filters?: Record<string, any>) =>
   useQuery<OrdersResponse, AxiosError>({
     queryKey: orderKeys.list(filters),
     queryFn: () => fetchOrders(filters),
-    staleTime: 120000,
+    staleTime: 60000,
+    refetchInterval: 15000,
   });
+
+export const useAllOrdersQuery = (filters?: Record<string, any>) =>
+  useQuery<OrdersResponse, AxiosError>({
+    queryKey: orderKeys.allDbOrders(filters),
+    queryFn: () => fetchAllOrdersResponse(filters),
+    staleTime: 60000,
+    refetchInterval: 15000,
+  });
+
+export const useBranchAllOrdersQuery = (
+  branchId?: string | null,
+  filters?: Record<string, any>
+) =>
+  useQuery<OrdersResponse, AxiosError>({
+    queryKey: orderKeys.byBranchAll(branchId ?? 'none', filters),
+    queryFn: () => fetchBranchAllOrders(branchId!, filters),
+    enabled: !!branchId && branchId.trim() !== '',
+    staleTime: 60_000,
+  });
+
+export const useCurrentBranchOrAllDbOrdersQuery = (
+  currentBranchId?: string | null,
+  filters?: Record<string, any>
+) => {
+  const branchQuery = useBranchAllOrdersQuery(currentBranchId, filters);
+  const allQuery = useAllOrdersQuery(filters);
+  return currentBranchId ? branchQuery : allQuery;
+};
 export const useBranchOrdersQuery = (
   branchId?: string | null,
   filters?: Record<string, any>
@@ -369,13 +560,20 @@ export const useUpdateOrderStatusMutation = () => {
   return useMutation<
     Order,
     AxiosError<any>,
-    { orderId: string; status: Order['status'] }
+    {
+      orderId: string;
+      status: Order['status'];
+      reason?: string;
+      assignedWaiter?: string;
+      assignedKitchenStaff?: string;
+    }
   >({
     mutationFn: updateOrderStatus,
     onSuccess: (order) => {
       toast.success(`Order ${order.orderNumber} → ${order.status}`);
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(order._id) });
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to update order');
@@ -383,10 +581,26 @@ export const useUpdateOrderStatusMutation = () => {
   });
 };
 
+export const useCancelOrderMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Order, AxiosError<any>, { orderId: string; reason?: string }>({
+    mutationFn: cancelOrder,
+    onSuccess: (order) => {
+      toast.success(`Order ${order.orderNumber} canceled`);
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(order._id) });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to cancel order');
+    },
+  });
+};
+
 export const useMarkOrderAsPaidMutation = () => {
   const queryClient = useQueryClient();
 
-  // Change 'string' to '{ orderId: string, data: FormData }'
   return useMutation<
     Order,
     AxiosError<any>,
@@ -397,9 +611,216 @@ export const useMarkOrderAsPaidMutation = () => {
       toast.success(`Order ${order.orderNumber} marked as paid 💰`);
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(order._id) });
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Payment failed');
     },
   });
 };
+
+export interface AddItemPayload {
+  menuItemId?: string;
+  menuItem?: string;
+  quantity: number;
+  notes?: string;
+  specialInstructions?: string;
+}
+
+export const useAddItemsToOrderMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    Order,
+    AxiosError<any>,
+    { orderId: string; items: AddItemPayload[] }
+  >({
+    mutationFn: async ({ orderId, items }) => {
+      // Map to conform to API: { menuItemId, quantity, notes }
+      const formattedItems = items.map((i) => ({
+        menuItemId: i.menuItemId || i.menuItem,
+        quantity: i.quantity,
+        notes: i.notes || i.specialInstructions || '',
+      }));
+      const { data } = await api.patch(`/v1/order/${orderId}/add-items`, { items: formattedItems });
+      return data.data?.order || data.order;
+    },
+    onSuccess: (order) => {
+      toast.success(`Items added to Order ${order.orderNumber}`);
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(order._id) });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to add items to order');
+    },
+  });
+};
+
+/* ======================================================
+   KITCHEN / KDS QUERIES & MUTATIONS
+====================================================== */
+
+export const useKitchenTicketsForOrderQuery = (orderId?: string) =>
+  useQuery<any[], AxiosError>({
+    queryKey: ['kitchen', 'tickets', 'order', orderId],
+    queryFn: () => fetchKitchenTicketsForOrder(orderId as string),
+    enabled: !!orderId,
+    refetchInterval: 10000,
+  });
+
+export const useKitchenStationsQuery = () =>
+  useQuery<any[], AxiosError>({
+    queryKey: ['kitchen', 'stations'],
+    queryFn: fetchKitchenStations,
+    staleTime: 60000,
+  });
+
+export const useKitchenTicketsQuery = (params?: Record<string, any>) =>
+  useQuery<any[], AxiosError>({
+    queryKey: ['kitchen', 'tickets', params],
+    queryFn: () => fetchKitchenTickets(params),
+    refetchInterval: 8000,
+  });
+
+export const useUpdateKitchenTicketMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    AxiosError<any>,
+    {
+      ticketId: string;
+      action: 'accept' | 'start' | 'ready' | 'cancel' | 'status';
+      status?: string;
+      reason?: string;
+    }
+  >({
+    mutationFn: updateKitchenTicketStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update kitchen ticket');
+    },
+  });
+};
+
+/* ======================================================
+   ORDER ITEM STATUS MUTATIONS (ITEM-LEVEL WORKFLOW)
+====================================================== */
+
+export const useUpdateOrderItemStatusMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    AxiosError<any>,
+    {
+      orderId: string;
+      itemId: string;
+      status: ItemStatus;
+    }
+  >({
+    mutationFn: async ({ orderId, itemId, status }) => {
+      const { data } = await api.patch(
+        `/v1/order/${orderId}/items/${itemId}/status`,
+        { status }
+      );
+      return data.data || data;
+    },
+    onSuccess: (data, variables) => {
+      if (data?.noop) {
+        toast.info(`Item status was already set to ${variables.status}`);
+      } else {
+        toast.success(`Item status updated to ${variables.status}`);
+      }
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(variables.orderId) });
+      queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || 'Failed to update item status'
+      );
+    },
+  });
+};
+
+export const useBulkServeReadyItemsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    AxiosError<any>,
+    {
+      orderId: string;
+    }
+  >({
+    mutationFn: async ({ orderId }) => {
+      const { data } = await api.post(
+        `/v1/order/${orderId}/items/serve-ready`
+      );
+      return data.data || data;
+    },
+    onSuccess: (data, variables) => {
+      const count = data?.servedCount ?? (Array.isArray(data?.servedItems) ? data.servedItems.length : 0);
+      if (count > 0) {
+        toast.success(`Successfully served ${count} ready ${count === 1 ? 'item' : 'items'}`);
+      } else {
+        toast.info(data?.message || 'No ready items to serve');
+      }
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(variables.orderId) });
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || 'Failed to serve ready items'
+      );
+    },
+  });
+};
+
+export const useVoidOrderItemMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    AxiosError<any>,
+    {
+      orderId: string;
+      itemId: string;
+      reason: string;
+      createReplacement?: boolean;
+    }
+  >({
+    mutationFn: async ({ orderId, itemId, reason, createReplacement }) => {
+      const { data } = await api.patch(
+        `/v1/order/${orderId}/items/${itemId}/void`,
+        { reason, createReplacement: !!createReplacement }
+      );
+      return data.data || data;
+    },
+    onSuccess: (data, variables) => {
+      if (data?.replacementItem || variables.createReplacement) {
+        toast.success('Item voided and replacement item created for kitchen');
+      } else {
+        toast.success('Item voided successfully');
+      }
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.active() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.byId(variables.orderId) });
+      queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || 'Failed to void item'
+      );
+    },
+  });
+};
+
+
