@@ -1,0 +1,18 @@
+{
+  "kycTitle": "የነጋዴ ማረጋገጫ እና ህጋዊነት",
+  "kycSubtitle": "ሙሉ የነጋዴ አገልግሎቶችን ለማግኘት ህጋዊ የንግድ ሰነዶችን ያቅርቡ።",
+  "businessVerification": "የንግድ ድርጅት ማረጋገጫ",
+  "verificationStatus": "የማረጋገጫ ሁኔታ",
+  "unverified": "አልተረጋገጠም",
+  "pendingReview": "በግምገማ ላይ",
+  "verified": "በህጋዊ መንገድ ተረጋግጧል",
+  "rejected": "ውድቅ ተደርጓል",
+  "tinNumber": "የግብር ከፋይ መለያ ቁጥር (TIN)",
+  "tradeLicense": "የንግድ ፈቃድ ሰነድ",
+  "uploadDocument": "ህጋዊ ሰነድ ስቀል",
+  "documentAccepted": "ሰነዱ ተስቅሏል፤ በግምገማ ላይ ይገኛል።",
+  "submitForVerification": "ለማረጋገጫ አስገባ",
+  "submitting": "በማስገባት ላይ...",
+
+  "kycSubmittedSuccess": "ሰነዶች ለማረጋገጫ በተሳካ ሁኔታ ቀርበዋል"
+}

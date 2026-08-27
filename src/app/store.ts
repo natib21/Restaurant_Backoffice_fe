@@ -1,0 +1,27 @@
+// src/app/store.ts
+import { configureStore } from '@reduxjs/toolkit';
+// import authSlice from '../features/Auth/AuthSlice';
+// Import other slices as you create them
+// import menuSlice from '@/features/menu/menuSlice';
+// import ordersSlice from '@/features/orders/ordersSlice';
+import layoutSlice from '../components/Layout/layoutSlice';
+import orderSlice from '../features/Order/store/orderSlice';
+export const store = configureStore({
+  reducer: {
+    // auth: authSlice,
+    // menu: menuSlice,
+    orders: orderSlice,
+    // ... other feature slices
+    ui: layoutSlice,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        // Ignore non-serializable values from React Query or router if needed
+        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+      },
+    }),
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

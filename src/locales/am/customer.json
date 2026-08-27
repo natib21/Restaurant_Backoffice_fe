@@ -1,0 +1,18 @@
+{
+  "customers": "የደንበኞች ማኔጅመንት",
+  "customerList": "የደንበኞች ዝርዝር",
+  "customerGroups": "የደንበኞች ቡድኖች እና ታማኝነት",
+  "customerFeedback": "የደንበኞች አስተያየት እና ግምገማ",
+  "telegramChat": "የቴሌግራም ቀጥታ ድጋፍ",
+  "addCustomer": "ደንበኛ ጨምር",
+  "customerName": "የደንበኛ ስም",
+  "phone": "ስልክ ቁጥር",
+  "totalOrders": "ጠቅላላ ትዕዛዞች",
+  "totalSpent": "ጠቅላላ ወጪ",
+  "lastOrderDate": "የመጨረሻ ትዕዛዝ ቀን",
+  "loyaltyPoints": "የታማኝነት ነጥቦች",
+  "feedbackRating": "ደረጃ",
+  "comment": "አስተያየት",
+  "noCustomersFound": "ምንም ደንበኛ አልተገኘም።",
+  "customerSavedSuccess": "የደንበኛው መረጃ በተሳካ ሁኔታ ተቀምጧል"
+}

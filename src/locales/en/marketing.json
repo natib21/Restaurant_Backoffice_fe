@@ -1,0 +1,16 @@
+{
+  "marketing": "Marketing & Promotions",
+  "campaigns": "Promotional Campaigns",
+  "createCampaign": "Create New Campaign",
+  "campaignName": "Campaign Name",
+  "targetAudience": "Target Audience",
+  "discountRate": "Discount Rate (%)",
+  "startDate": "Start Date",
+  "endDate": "End Date",
+  "status": "Status",
+  "active": "Active",
+  "scheduled": "Scheduled",
+  "expired": "Expired",
+  "noCampaignsFound": "No promotional campaigns found.",
+  "campaignSavedSuccess": "Campaign created successfully"
+}

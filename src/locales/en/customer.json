@@ -1,0 +1,18 @@
+{
+  "customers": "Customer Management",
+  "customerList": "Customer List",
+  "customerGroups": "Customer Groups & Loyalty",
+  "customerFeedback": "Customer Feedback & Reviews",
+  "telegramChat": "Telegram Live Support",
+  "addCustomer": "Add Customer",
+  "customerName": "Customer Name",
+  "phone": "Phone Number",
+  "totalOrders": "Total Orders",
+  "totalSpent": "Total Spent",
+  "lastOrderDate": "Last Order Date",
+  "loyaltyPoints": "Loyalty Points",
+  "feedbackRating": "Rating",
+  "comment": "Feedback Comment",
+  "noCustomersFound": "No customers found.",
+  "customerSavedSuccess": "Customer details saved successfully"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Restaurant Backoffice",
+  "description": "Restaurant merchant and backoffice management application for orders, menu, inventory, branches, and customers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "inventory": "የእቃ እና ጥሬ ዕቃ ማኔጅመንት",
+  "stockOverview": "የእቃ ክምችት አጠቃላይ እይታ",
+  "stockOverviewSubtitle": "የጥሬ ዕቃ ደረጃዎችን፣ የማስጠንቀቂያ ገደቦችን እና አጠቃቀምን ይከታተሉ።",
+  "ingredients": "ጥሬ ዕቃዎች እና እቃዎች",
+  "ingredientsSubtitle": "ጥሬ ዕቃዎችን፣ የመለኪያ አሃዶችን፣ እንደገና ማዘዣ ነጥቦችን እና የግዢ ዋጋዎችን ያስተዳድሩ።",
+  "recipes": "የምግብ ዝግጅት እና ጥሬ ዕቃዎች",
+  "recipesSubtitle": "ለትክክለኛ የዋጋ ስሌት እና የእቃ ቅናሽ ጥሬ ዕቃዎችን ከሜኑ ምግቦች ጋር ያገናኙ።",
+  "purchaseOrders": "የግዢ ትዕዛዞች",
+  "purchaseOrdersSubtitle": "ለአቅራቢዎች የእቃ መሙያ ትዕዛዞችን ይፍጠሩ እና ያስተዳድሩ።",
+  "suppliers": "አቅራቢዎች እና ሻጮች",
+  "suppliersSubtitle": "የአቅራቢዎችን መገለጫ፣ የመገናኛ መረጃ እና የማስረከቢያ ደንቦችን ይያዙ።",
+  "wasteTracking": "የብክነት እና ኪሳራ ቁጥጥር",
+  "wasteTrackingSubtitle": "ትክክለኛ የእቃ መዝገብ ለመያዝ የተበላሹ፣ ጊዜያቸው ያለፈባቸው ወይም የፈሰሱ እቃዎችን ይመዝግቡ።",
+
+  "itemName": "ጥሬ ዕቃ / እቃ",
+  "category": "ምድብ",
+  "currentStock": "ያለው ክምችት",
+  "unit": "መለኪያ",
+  "reorderPoint": "እንደገና ማዘዣ ነጥብ",
+  "costPerUnit": "ዋጋ / መለኪያ",
+  "supplier": "አቅራቢ",
+  "status": "ሁኔታ",
+  "inStock": "በክምችት አለ",
+  "lowStock": "አንሶአል (ዝቅተኛ)",
+  "outOfStock": "አልቋል",
+
+  "addIngredient": "ጥሬ ዕቃ ጨምር",
+  "editIngredient": "ጥሬ ዕቃ አርም",
+  "logStockAdjustment": "የእቃ ማስተካከያ ይመዝግቡ",
+  "createPurchaseOrder": "የግዢ ትዕዛዝ ፍጠር",
+  "addSupplier": "አቅራቢ ጨምር",
+  "logWaste": "የተበላሸ እቃ ይመዝግቡ",
+
+  "ingredientSavedSuccess": "ጥሬ ዕቃው በተሳካ ሁኔታ ተቀምጧል",
+  "poCreatedSuccess": "የግዢ ትዕዛዙ በተሳካ ሁኔታ ተፈጥሯል",
+  "wasteLoggedSuccess": "የተበላሸው እቃ በተሳካ ሁኔታ ተመዝግቧል"
+}

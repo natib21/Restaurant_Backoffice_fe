@@ -1,0 +1,16 @@
+{
+  "marketing": "ማርኬቲንግ እና ማስተዋወቂያዎች",
+  "campaigns": "የማስተዋወቂያ ዘመቻዎች",
+  "createCampaign": "አዲስ ዘመቻ ፍጠር",
+  "campaignName": "የዘመቻው ስም",
+  "targetAudience": "ተቀባይ ደንበኞች",
+  "discountRate": "የቅናሽ መጠን (%)",
+  "startDate": "የመጀመሪያ ቀን",
+  "endDate": "የመጨረሻ ቀን",
+  "status": "ሁኔታ",
+  "active": "በስራ ላይ",
+  "scheduled": "ተቀጥሯል",
+  "expired": "ጊዜው አልፏል",
+  "noCampaignsFound": "ምንም የማስተዋወቂያ ዘመቻ አልተገኘም።",
+  "campaignSavedSuccess": "ማስተዋወቂያው በተሳካ ሁኔታ ተፈጥሯል"
+}
