@@ -29,6 +29,8 @@ import {
   AlertCircle,
   Building2,
   DollarSign,
+  QrCode,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +57,7 @@ import { Label } from '@/components/ui/label';
 import { formatOrderItemName } from '../lib/orderUtils';
 import OrderItemRow from '../Components/OrderItemRow';
 import BulkServeButton from '../Components/BulkServeButton';
+import { VerifyPaymentModal } from '../Components/VerifyPaymentModal';
 import {
   useOrderByIdQuery,
   useUpdateOrderStatusMutation,
@@ -67,8 +70,11 @@ type OrderStatus =
   | 'preparing'
   | 'ready'
   | 'served'
+  | 'out_for_delivery'
+  | 'delivered'
   | 'completed'
-  | 'canceled';
+  | 'canceled'
+  | 'cancelled';
 
 export const OrderDetailsPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -261,6 +267,16 @@ export const OrderDetailsPage = () => {
       color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
       dot: 'bg-purple-500',
     },
+    out_for_delivery: {
+      label: 'Out for Delivery',
+      color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800',
+      dot: 'bg-indigo-500',
+    },
+    delivered: {
+      label: 'Delivered',
+      color: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800',
+      dot: 'bg-teal-500',
+    },
     completed: {
       label: 'Completed',
       color: 'bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900',
@@ -271,28 +287,11 @@ export const OrderDetailsPage = () => {
       color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
       dot: 'bg-rose-500',
     },
-  };
-
-  const handleNextStep = async () => {
-    if (!order) return;
-    if (currentStatus === 'served' && !isPaid) {
-      setIsConfirmOpen(true);
-      return;
-    }
-
-    const sequence: OrderStatus[] = [
-      'pending',
-      'accepted',
-      'preparing',
-      'ready',
-      'served',
-      'completed',
-    ];
-    const currentIndex = sequence.indexOf(currentStatus);
-    if (currentIndex >= 0 && currentIndex < sequence.length - 1) {
-      const nextStatus = sequence[currentIndex + 1];
-      await updateStatus({ orderId: order._id, status: nextStatus });
-    }
+    cancelled: {
+      label: 'Canceled',
+      color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+      dot: 'bg-rose-500',
+    },
   };
 
   const handleCancel = async () => {
@@ -401,6 +400,29 @@ export const OrderDetailsPage = () => {
 
         {/* Top Action Buttons matching RestoFlow Header */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Bulk Serve Ready Items */}
+          {order.items && order.items.length > 0 && (
+            <BulkServeButton
+              orderId={order._id}
+              items={order.items}
+              onSuccess={() => refetch()}
+            />
+          )}
+
+          {/* Quick link to Kitchen Display System if kitchen items present */}
+          {order.items?.some((it: any) => it.requiresKitchen !== false) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/kds')}
+              className="text-xs h-9 gap-1.5 border-border hover:bg-primary/5 text-primary font-semibold"
+              title="Open Kitchen Display System (KDS)"
+            >
+              <ChefHat className="h-3.5 w-3.5" />
+              <span>Kitchen Display</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -421,60 +443,133 @@ export const OrderDetailsPage = () => {
             Print Receipt
           </Button>
 
-          {!isCanceled && currentStatus !== 'completed' && (
+          {/* 1. When status is 'pending': Show Accept and Prepare buttons */}
+          {currentStatus === 'pending' && (
             <>
               <Button
-                variant="outline"
                 size="sm"
-                onClick={handleCancel}
-                className="text-xs h-9 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900 dark:hover:bg-rose-950/30"
+                disabled={isUpdatingStatus}
+                onClick={() => updateStatus({ orderId: order._id, status: 'accepted' })}
+                className="text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs"
               >
-                <XCircle className="h-3.5 w-3.5 mr-1" />
-                Cancel Order
+                <Check className="h-3.5 w-3.5" />
+                Accept Order
               </Button>
+              <Button
+                size="sm"
+                disabled={isUpdatingStatus}
+                onClick={() => updateStatus({ orderId: order._id, status: 'preparing' })}
+                className="text-xs h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-2xs"
+              >
+                <ChefHat className="h-3.5 w-3.5" />
+                Prepare Order
+              </Button>
+            </>
+          )}
 
-              {currentStatus !== 'served' && (
+          {/* 2. When status is 'accepted': Show Prepare button to dispatch to kitchen */}
+          {currentStatus === 'accepted' && (
+            <Button
+              size="sm"
+              disabled={isUpdatingStatus}
+              onClick={() => updateStatus({ orderId: order._id, status: 'preparing' })}
+              className="text-xs h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-2xs"
+            >
+              <ChefHat className="h-3.5 w-3.5" />
+              Prepare Order (Send to Kitchen)
+            </Button>
+          )}
+
+          {/* 3. When status is 'preparing': Accept & Prepare buttons disappear as order is in kitchen */}
+          {currentStatus === 'preparing' && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-lg">
+              <ChefHat className="h-4 w-4 animate-pulse text-orange-500" />
+              <span>Cooking in Kitchen (Ticket in KDS)</span>
+            </div>
+          )}
+
+          {/* 4. When status is 'ready': Show Serve button (or Dispatch) */}
+          {currentStatus === 'ready' && (
+            <>
+              {order.orderType === 'delivery' ? (
                 <Button
                   size="sm"
-                  onClick={handleNextStep}
                   disabled={isUpdatingStatus}
-                  className="text-xs h-9 bg-primary text-primary-foreground font-bold hover:opacity-90 shadow-2xs gap-1.5"
+                  onClick={() => updateStatus({ orderId: order._id, status: 'out_for_delivery' })}
+                  className="text-xs h-9 bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5 shadow-2xs"
                 >
-                  {isUpdatingStatus ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <span>Advance to Next Stage</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </>
-                  )}
+                  <Truck className="h-3.5 w-3.5" />
+                  Dispatch Delivery
                 </Button>
-              )}
-
-              {currentStatus === 'served' && !isPaid && (
+              ) : (
                 <Button
                   size="sm"
-                  onClick={() => setIsConfirmOpen(true)}
-                  disabled={isPaying}
-                  className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-2xs gap-1.5"
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Settle Payment & Complete
-                </Button>
-              )}
-
-              {currentStatus === 'served' && isPaid && (
-                <Button
-                  size="sm"
-                  onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
                   disabled={isUpdatingStatus}
-                  className="text-xs h-9 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold gap-1.5"
+                  onClick={() =>
+                    updateStatus(
+                      { orderId: order._id, status: 'served' },
+                      {
+                        onSuccess: () => {
+                          if (!isPaid) {
+                            setIsConfirmOpen(true);
+                          }
+                        },
+                      }
+                    )
+                  }
+                  className="text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Complete Order
+                  <UtensilsCrossed className="h-3.5 w-3.5" />
+                  Mark as Served
                 </Button>
               )}
             </>
+          )}
+
+          {/* 5. When status is ready, served, or delivered and unpaid: Settle Payment button appears */}
+          {(currentStatus === 'ready' ||
+            currentStatus === 'served' ||
+            currentStatus === 'out_for_delivery' ||
+            currentStatus === 'delivered') &&
+            !isPaid &&
+            !isCanceled && (
+              <Button
+                size="sm"
+                onClick={() => setIsConfirmOpen(true)}
+                disabled={isPaying}
+                className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-2xs gap-1.5"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Settle Payment
+              </Button>
+            )}
+
+          {/* 6. When status is served or delivered and already paid: Complete Order button appears */}
+          {(currentStatus === 'served' ||
+            currentStatus === 'out_for_delivery' ||
+            currentStatus === 'delivered') &&
+            isPaid && (
+              <Button
+                size="sm"
+                disabled={isUpdatingStatus}
+                onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
+                className="text-xs h-9 bg-slate-800 hover:bg-slate-900 text-white font-semibold gap-1.5 shadow-2xs"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Complete Order
+              </Button>
+            )}
+
+          {!isCanceled && currentStatus !== 'completed' && currentStatus !== 'served' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              className="text-xs h-9 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900 dark:hover:bg-rose-950/30"
+            >
+              <XCircle className="h-3.5 w-3.5 mr-1" />
+              Cancel Order
+            </Button>
           )}
         </div>
       </div>
@@ -493,6 +588,23 @@ export const OrderDetailsPage = () => {
             )}
             <span className="capitalize">{order.orderType?.replace('_', ' ') || 'Dine-In'}</span>
           </div>
+
+          {/* QR / Online Order source badge */}
+          {Boolean(
+            order.source === 'qr' ||
+            order.source === 'web' ||
+            order.channel === 'qr' ||
+            order.channel === 'web' ||
+            order.isQrOrder ||
+            (typeof (order as any).orderChannel === 'string' &&
+              ((order as any).orderChannel.includes('qr') || (order as any).orderChannel.includes('web'))) ||
+            (typeof (order as any).notes === 'string' && (order as any).notes.toLowerCase().includes('qr'))
+          ) && (
+            <div className="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-semibold">
+              <QrCode className="h-3.5 w-3.5" />
+              <span>QR Order</span>
+            </div>
+          )}
 
           {/* Table Badge */}
           {tableStr && (
@@ -533,11 +645,16 @@ export const OrderDetailsPage = () => {
 
       {/* 3. Order Journey Status Progression Bar */}
       <div className="bg-card border border-border rounded-xl p-4 shadow-2xs">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Timer className="h-3.5 w-3.5 text-primary" />
-            Kitchen Order Lifecycle
-          </span>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Timer className="h-3.5 w-3.5 text-primary" />
+              Order Status Progression
+            </span>
+            <span className="text-[11px] text-muted-foreground italic">
+              (Automatically derived from item progress)
+            </span>
+          </div>
           <span className="text-xs font-semibold text-foreground">
             Current Stage:{' '}
             <strong className="text-primary capitalize">{statusConfig[currentStatus]?.label || currentStatus}</strong>
@@ -932,149 +1049,17 @@ export const OrderDetailsPage = () => {
         </div>
       </div>
 
-      {/* 5. Payment Confirmation Modal */}
-      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <DialogContent className="sm:max-w-[440px] p-0 border border-border shadow-xl overflow-hidden">
-          {isPaying && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Verifying Payment...
-              </p>
-            </div>
-          )}
-
-          <DialogHeader className="p-5 bg-primary text-white border-b">
-            <DialogTitle className="text-base font-bold flex items-center gap-2 text-white">
-              <CreditCard className="h-4 w-4" />
-              Record Order Payment
-            </DialogTitle>
-            <DialogDescription className="text-slate-300 text-xs">
-              Verify and settle payment for Order #{order.orderNumber}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-5 space-y-4 text-xs">
-            {/* Amount Banner */}
-            <div className="p-3 rounded-lg border bg-surface-container-low flex items-center justify-between">
-              <span className="font-bold text-muted-foreground">Total Due:</span>
-              <span className="font-mono font-black text-lg text-primary">
-                ETB {Number(totalAmount).toFixed(2)}
-              </span>
-            </div>
-
-            {/* Payment Method Toggle */}
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-foreground">Select Payment Method</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('cash')}
-                  className={cn(
-                    'flex items-center justify-center gap-2 p-3 rounded-lg border text-xs font-bold transition-all',
-                    paymentMethod === 'cash'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  <Wallet className="h-4 w-4" /> Cash / Counter
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('mobile_banking')}
-                  className={cn(
-                    'flex items-center justify-center gap-2 p-3 rounded-lg border text-xs font-bold transition-all',
-                    paymentMethod === 'mobile_banking'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  <ImageIcon className="h-4 w-4" /> Mobile / Bank
-                </button>
-              </div>
-            </div>
-
-            {/* Bank Select if mobile */}
-            {paymentMethod === 'mobile_banking' && (
-              <div className="space-y-3 pt-1">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">Platform / Bank</Label>
-                  <Select value={selectedBank} onValueChange={setSelectedBank}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Select platform" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CBE" className="text-xs">CBE (Commercial Bank of Ethiopia)</SelectItem>
-                      <SelectItem value="telebirr" className="text-xs">Telebirr SuperApp</SelectItem>
-                      <SelectItem value="Abyssinia" className="text-xs">Bank of Abyssinia</SelectItem>
-                      <SelectItem value="Awash" className="text-xs">Awash Bank</SelectItem>
-                      <SelectItem value="MPesa" className="text-xs">M-Pesa / Safaricom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">
-                    Payment Slip / Screenshot (Optional)
-                  </Label>
-                  <div className="relative border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 text-center cursor-pointer transition-colors">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    />
-                    {previewUrl ? (
-                      <div className="space-y-2">
-                        <img
-                          src={previewUrl}
-                          alt="Receipt Slip"
-                          className="h-28 mx-auto object-contain rounded border"
-                        />
-                        <p className="text-[11px] text-primary font-bold">Click to change photo</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <ImageIcon className="h-6 w-6 text-muted-foreground mx-auto" />
-                        <p className="text-xs font-semibold text-foreground">
-                          Upload receipt image
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">PNG, JPG, or screenshot</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="p-4 bg-muted/40 border-t flex flex-row gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsConfirmOpen(false)}
-              disabled={isPaying}
-              className="flex-1 text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={confirmPayment}
-              disabled={isPaying}
-              className="flex-1 text-xs font-bold bg-primary text-primary-foreground"
-            >
-              {isPaying ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Confirm & Settle
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 5. Payment Confirmation & Verification Modal */}
+      {order && (
+        <VerifyPaymentModal
+          isOpen={isConfirmOpen}
+          onClose={() => {
+            setIsConfirmOpen(false);
+            refetch();
+          }}
+          order={order}
+        />
+      )}
     </div>
   );
 };

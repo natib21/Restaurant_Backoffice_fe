@@ -32,6 +32,9 @@ const layoutSlice = createSlice({
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;
     },
+    setSidebarCollapsed: (state, action: PayloadAction<boolean>) => {
+      state.sidebarCollapsed = action.payload;
+    },
     setSidebarOpen: (state, action: PayloadAction<boolean>) => {
       state.sidebarOpen = action.payload;
     },
@@ -66,6 +69,7 @@ const layoutSlice = createSlice({
 export const {
   toggleSidebar,
   toggleSidebarCollapse,
+  setSidebarCollapsed,
   setSidebarOpen,
   toggleTheme,
   setTheme,

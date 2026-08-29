@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   Filter,
@@ -16,6 +16,8 @@ import {
   Package,
   CheckCircle2,
   AlertTriangle,
+  Bookmark,
+  Trash2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,6 +38,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import {
+  AdvancedFilterDrawer,
+  ActiveFilterChips,
+  type AdvancedFilterField,
+  type SavedPreset,
+} from '@/components/Common/AdavanceFilter';
+import { DEFAULT_ORDER_FILTER_FIELDS } from '../lib/orderFilterUtils';
+import { toast } from 'sonner';
 
 export interface OrderFilterState {
   search: string;
@@ -45,6 +55,7 @@ export interface OrderFilterState {
   urgency: 'all' | 'urgent' | 'normal';
   sortBy: 'newest' | 'oldest' | 'amount_high' | 'amount_low' | 'urgency';
   viewMode: 'kanban' | 'grid' | 'table';
+  advancedFilters?: Record<string, any>;
 }
 
 interface OrderFilterBarProps {
@@ -53,11 +64,13 @@ interface OrderFilterBarProps {
   onResetFilters: () => void;
   statusCounts?: Record<string, number>;
   totalCount?: number;
+  filteredCount?: number;
   soundEnabled?: boolean;
   onToggleSound?: () => void;
   onTestSound?: () => void;
   allowedTypes?: Array<'dine_in' | 'takeaway' | 'delivery'>;
   statusOptions?: Array<{ key: string; label: string; icon?: any }>;
+  customFilterFields?: AdvancedFilterField[];
 }
 
 export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
@@ -66,6 +79,7 @@ export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
   onResetFilters,
   statusCounts = {},
   totalCount = 0,
+  filteredCount,
   soundEnabled = true,
   onToggleSound,
   onTestSound,
@@ -81,14 +95,110 @@ export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
     { key: 'completed', label: 'Completed' },
     { key: 'canceled', label: 'Canceled' },
   ],
+  customFilterFields,
 }) => {
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+
+  // Storage key for preset views
+  const storageKey = `resto_order_views_${allowedTypes?.join('_') || 'all'}`;
+  const [presets, setPresets] = useState<SavedPreset[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Calculate active advanced filter count
+  const advancedFilterValues = filters.advancedFilters || {};
+  const activeAdvancedCount = Object.entries(advancedFilterValues).filter(
+    ([_, val]) => {
+      if (val === undefined || val === null || val === '') return false;
+      if (Array.isArray(val) && val.length === 0) return false;
+      if (typeof val === 'object' && !Array.isArray(val)) {
+        return Object.values(val).some(
+          (v) => v !== '' && v !== null && v !== undefined
+        );
+      }
+      return true;
+    }
+  ).length;
+
+  // Filter fields configuration
+  const filterFields: AdvancedFilterField[] = (
+    customFilterFields || DEFAULT_ORDER_FILTER_FIELDS
+  ).filter((field) => {
+    if (field.id === 'orderType' && allowedTypes && allowedTypes.length === 1) {
+      return false;
+    }
+    return true;
+  });
+
+  const handleAdvancedFilterChange = (key: string, value: any) => {
+    onFilterChange({
+      advancedFilters: {
+        ...(filters.advancedFilters || {}),
+        [key]: value,
+      },
+    });
+  };
+
+  const handleResetAdvancedFilters = () => {
+    onFilterChange({
+      advancedFilters: {},
+    });
+  };
+
+  const handleRemoveAdvancedFilter = (key: string) => {
+    const updated = { ...(filters.advancedFilters || {}) };
+    delete updated[key];
+    onFilterChange({
+      advancedFilters: updated,
+    });
+  };
+
+  const handleSavePreset = (name: string) => {
+    const newPreset: SavedPreset = {
+      id: `preset_${Date.now()}`,
+      name,
+      filters: {
+        search: filters.search,
+        quickFilter: filters.status,
+        advanced: filters.advancedFilters || {},
+        viewMode: filters.viewMode,
+      },
+    };
+    const updated = [...presets, newPreset];
+    setPresets(updated);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      toast.success(`Saved view preset "${name}"`);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeletePreset = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = presets.filter((p) => p.id !== id);
+    setPresets(updated);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      toast.info('Preset removed');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const hasActiveFilters =
     Boolean(filters.search) ||
-    filters.orderType !== 'all' ||
-    filters.status !== 'all' ||
-    filters.paymentStatus !== 'all' ||
-    filters.urgency !== 'all' ||
-    filters.sortBy !== 'newest';
+    (filters.orderType && filters.orderType !== 'all' && (!allowedTypes || allowedTypes.length > 1)) ||
+    (filters.status && filters.status !== 'all') ||
+    (filters.paymentStatus && filters.paymentStatus !== 'all') ||
+    (filters.urgency && filters.urgency !== 'all') ||
+    filters.sortBy !== 'newest' ||
+    activeAdvancedCount > 0;
 
   return (
     <div className="space-y-3 bg-card border rounded-xl p-3 shadow-2xs">
@@ -205,6 +315,76 @@ export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
             </SelectContent>
           </Select>
 
+          {/* Advanced Filter Toggle Button */}
+          <Button
+            type="button"
+            variant={isFilterDrawerOpen || activeAdvancedCount > 0 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setIsFilterDrawerOpen((prev) => !prev)}
+            className={cn(
+              'h-9 px-3 text-xs font-semibold gap-1.5 transition-colors',
+              activeAdvancedCount > 0 && !isFilterDrawerOpen && 'border-primary text-primary'
+            )}
+            title="Open Advanced Filters"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>Filters</span>
+            {activeAdvancedCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-0.5 px-1.5 py-0 h-4 text-[10px] font-mono font-bold"
+              >
+                {activeAdvancedCount}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Saved Views / Presets dropdown */}
+          {presets.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-2.5 text-xs font-semibold gap-1.5"
+                  title="Saved Filter Presets"
+                >
+                  <Bookmark className="h-3.5 w-3.5 text-primary" />
+                  <span className="hidden sm:inline">Views</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs">Saved Presets</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {presets.map((preset) => (
+                  <DropdownMenuItem
+                    key={preset.id}
+                    onClick={() => {
+                      onFilterChange({
+                        search: preset.filters.search || '',
+                        status: preset.filters.quickFilter || 'all',
+                        advancedFilters: preset.filters.advanced || {},
+                        viewMode: (preset.filters.viewMode as any) || filters.viewMode,
+                      });
+                      toast.info(`Applied view "${preset.name}"`);
+                    }}
+                    className="flex items-center justify-between text-xs cursor-pointer"
+                  >
+                    <span className="truncate">{preset.name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeletePreset(preset.id, e)}
+                      className="p-1 text-muted-foreground hover:text-destructive shrink-0 ml-2"
+                      title="Delete preset"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* View Mode Toggle */}
           <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
             <button
@@ -296,6 +476,37 @@ export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
         </div>
       </div>
 
+      {/* Advanced Filter Drawer */}
+      <AdvancedFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        filterFields={filterFields}
+        values={advancedFilterValues}
+        onChange={handleAdvancedFilterChange}
+        onApply={() => setIsFilterDrawerOpen(false)}
+        onReset={handleResetAdvancedFilters}
+        onSavePreset={handleSavePreset}
+        activeCount={activeAdvancedCount}
+      />
+
+      {/* Active Filter Chips */}
+      <ActiveFilterChips
+        searchQuery={filters.search}
+        onClearSearch={() => onFilterChange({ search: '' })}
+        quickFilter={filters.status}
+        quickFilterOptions={statusOptions.map((o) => ({ key: o.key, label: o.label }))}
+        onClearQuickFilter={() => onFilterChange({ status: 'all' })}
+        advancedFilters={advancedFilterValues}
+        filterFields={filterFields}
+        onRemoveAdvancedFilter={handleRemoveAdvancedFilter}
+        groupBy={null}
+        onClearGroupBy={() => {}}
+        totalCount={totalCount}
+        filteredCount={filteredCount ?? totalCount}
+        entityName="orders"
+        onResetAll={onResetFilters}
+      />
+
       {/* Bottom Row: Status Filter Chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
         {statusOptions.map((opt) => {
@@ -337,3 +548,4 @@ export const OrderFilterBar: React.FC<OrderFilterBarProps> = ({
   );
 };
 export default OrderFilterBar;
+
