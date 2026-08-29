@@ -13,6 +13,8 @@ import type {
   KdsInventoryItem,
   CreateKitchenStationDto,
   UpdateKitchenStationDto,
+  TicketHistoryFilterParams,
+  TicketHistoryResponse,
 } from '@/features/KDS/types/kdsTypes';
 
 export type {
@@ -24,6 +26,8 @@ export type {
   KdsInventoryItem,
   CreateKitchenStationDto,
   UpdateKitchenStationDto,
+  TicketHistoryFilterParams,
+  TicketHistoryResponse,
 };
 
 // ====================== OBJECT ID VALIDATOR ======================
@@ -108,8 +112,20 @@ export const normalizeKitchenTicket = (raw: any): KdsTicket => {
     acceptedAt: raw.acceptedAt,
     startedAt: raw.startedAt,
     readyAt: raw.readyAt || raw.completedAt,
+    completedAt: raw.completedAt || raw.readyAt,
     canceledAt: raw.canceledAt,
     cancelReason: raw.cancelReason || raw.canceledReason,
+    assignedStaffId: raw.assignedStaffId || raw.staff?._id || raw.assignedStaff?._id,
+    assignedStaffName: raw.assignedStaffName || raw.staff?.name || raw.assignedStaff?.name,
+    durationSeconds:
+      raw.durationSeconds ||
+      raw.prepDurationSeconds ||
+      (raw.completedAt && raw.createdAt
+        ? Math.max(0, Math.round((new Date(raw.completedAt).getTime() - new Date(raw.createdAt).getTime()) / 1000))
+        : raw.readyAt && raw.createdAt
+        ? Math.max(0, Math.round((new Date(raw.readyAt).getTime() - new Date(raw.createdAt).getTime()) / 1000))
+        : undefined),
+    completedBy: raw.completedBy || raw.completedByName,
     items: Array.isArray(raw.items)
       ? raw.items.map((itm: any, idx: number) => {
           const formattedName = formatOrderItemName(itm);
@@ -124,6 +140,8 @@ export const normalizeKitchenTicket = (raw: any): KdsTicket => {
             modifiers: itm.modifiers || itm.modifierNames,
             status: itm.status || (itm.completed ? 'ready' : 'pending'),
             completed: itm.completed ?? (itm.status === 'ready' || itm.status === 'completed'),
+            startedAt: itm.startedAt || null,
+            completedAt: itm.completedAt || null,
           };
         })
       : [],
@@ -142,6 +160,8 @@ export const kitchenKeys = {
   staff: (branchId?: string) => [...kitchenKeys.all, 'staff', branchId || 'all'] as const,
   inventory: (stationId?: string) =>
     [...kitchenKeys.all, 'inventory', stationId || 'all'] as const,
+  history: (params?: TicketHistoryFilterParams) =>
+    [...kitchenKeys.all, 'history', params || {}] as const,
 };
 
 // ====================== API FETCHERS ======================
@@ -234,6 +254,71 @@ export const fetchOrderTickets = async (orderId: string): Promise<KdsTicket[]> =
     return rawTickets.map(normalizeKitchenTicket);
   }
   return [];
+};
+
+// GET /api/v1/kitchen/tickets/history
+// Query params: ?branchId, ?stationId, ?startDate, ?endDate, ?page, ?limit, ?status, ?search
+// RBAC Task: kitchen.tickets.history
+export const fetchKitchenTicketHistory = async (
+  params?: TicketHistoryFilterParams
+): Promise<TicketHistoryResponse> => {
+  const validBranchId = isValidObjectId(params?.branchId) ? params?.branchId : undefined;
+  const validStationId = isValidObjectId(params?.stationId) ? params?.stationId : undefined;
+
+  const queryParams: Record<string, any> = {};
+  if (validBranchId) queryParams.branchId = validBranchId;
+  if (validStationId) queryParams.stationId = validStationId;
+  if (params?.startDate) queryParams.startDate = params.startDate;
+  if (params?.endDate) queryParams.endDate = params.endDate;
+  if (params?.page) queryParams.page = params.page;
+  if (params?.limit) queryParams.limit = params.limit;
+  if (params?.status && params.status !== 'all') queryParams.status = params.status;
+  if (params?.search && params.search.trim()) queryParams.search = params.search.trim();
+
+  try {
+    const { data } = await api.get('/v1/kitchen/tickets/history', {
+      params: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+    });
+
+    const rawTickets =
+      data?.data?.tickets ||
+      data?.tickets ||
+      (Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []));
+
+    const total =
+      typeof data?.total === 'number'
+        ? data.total
+        : typeof data?.data?.total === 'number'
+        ? data.data.total
+        : typeof data?.results === 'number'
+        ? data.results
+        : Array.isArray(rawTickets)
+        ? rawTickets.length
+        : 0;
+
+    const page = Number(data?.page || data?.data?.page || params?.page || 1);
+    const limit = Number(data?.limit || data?.data?.limit || params?.limit || 20);
+    const pages = Number(data?.pages || data?.data?.pages || Math.max(1, Math.ceil(total / (limit || 20))));
+
+    const tickets = Array.isArray(rawTickets) ? rawTickets.map(normalizeKitchenTicket) : [];
+
+    return {
+      tickets,
+      total,
+      page,
+      pages,
+      limit,
+    };
+  } catch (err: any) {
+    console.error('Error fetching kitchen ticket history:', err);
+    return {
+      tickets: [],
+      total: 0,
+      page: Number(params?.page || 1),
+      pages: 1,
+      limit: Number(params?.limit || 20),
+    };
+  }
 };
 
 // KITCHEN STAFF: Fetched from Users API where user's role includes Kitchen Tasks
@@ -444,6 +529,18 @@ export const useOrderTicketsQuery = (orderId: string) => {
   });
 };
 
+export const useKitchenTicketHistoryQuery = (
+  params?: TicketHistoryFilterParams,
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+) => {
+  return useQuery<TicketHistoryResponse, AxiosError>({
+    queryKey: kitchenKeys.history(params),
+    queryFn: () => fetchKitchenTicketHistory(params),
+    staleTime: 15 * 1000,
+    ...options,
+  });
+};
+
 export const useKitchenStaffQuery = (branchId?: string) => {
   return useQuery<KdsStaffMember[], AxiosError>({
     queryKey: kitchenKeys.staff(branchId),
@@ -563,6 +660,43 @@ export const useUpdateTicketStatusMutation = () => {
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || 'Failed to update ticket status');
+    },
+  });
+};
+
+// PATCH or PUT /api/v1/kitchen/tickets/:ticketId/items/:itemId/status
+export const useUpdateTicketItemStatusMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      itemId,
+      status,
+    }: {
+      ticketId: string;
+      itemId: string;
+      status: 'pending' | 'in_progress' | 'ready';
+    }) => {
+      try {
+        const { data } = await api.patch(`/v1/kitchen/tickets/${ticketId}/items/${itemId}/status`, { status });
+        return data?.data || data;
+      } catch {
+        try {
+          const { data } = await api.put(`/v1/kitchen/tickets/${ticketId}/items/${itemId}/status`, { status });
+          return data?.data || data;
+        } catch {
+          const { data } = await api.patch(`/v1/kitchen/tickets/${ticketId}/item/${itemId}`, {
+            completed: status === 'ready',
+          });
+          return data?.data || data;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kitchenKeys.all });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to update ticket item status');
     },
   });
 };

@@ -30,6 +30,7 @@ import CancelOrderModal from '../Components/CancelOrderModal';
 import AddItemsModal from '../Components/AddItemsModal';
 import OrderDetailsContent from '../Components/OrderDetailsPanel';
 import { playOrderSound } from '@/features/Order/lib/soundPlayer';
+import { filterAndSortOrders } from '../lib/orderFilterUtils';
 import { toast } from 'sonner';
 
 const TAKEAWAY_STATUS_OPTIONS = [
@@ -182,60 +183,10 @@ const TakeawayManagementPage: React.FC = () => {
     [updateStatus]
   );
 
-  // Filtered takeaways list
+  // Filtered takeaways list using unified filter engine
   const filteredTakeaways = useMemo(() => {
-    return takeaways
-      .filter((order) => {
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          const matchesNum = order.orderNumber?.toLowerCase().includes(q);
-          const matchesCustomer = order.customerName?.toLowerCase().includes(q);
-          const matchesPhone = order.customerPhone?.toLowerCase().includes(q);
-
-          if (!matchesNum && !matchesCustomer && !matchesPhone) {
-            return false;
-          }
-        }
-
-        if (filters.status !== 'all' && order.status !== filters.status) {
-          return false;
-        }
-
-        if (
-          filters.paymentStatus !== 'all' &&
-          order.paymentStatus !== filters.paymentStatus
-        ) {
-          return false;
-        }
-
-        if (filters.urgency === 'urgent') {
-          const elapsed =
-            (now - new Date(order.placedAt).getTime()) / (1000 * 60);
-          if (elapsed < 20) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (filters.sortBy === 'newest') {
-          return (
-            new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'oldest') {
-          return (
-            new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'amount_high') {
-          return (b.totalAmount || 0) - (a.totalAmount || 0);
-        }
-        if (filters.sortBy === 'amount_low') {
-          return (a.totalAmount || 0) - (b.totalAmount || 0);
-        }
-        return 0;
-      });
-  }, [takeaways, filters]);
+    return filterAndSortOrders(takeaways, filters, now);
+  }, [takeaways, filters, now]);
 
   return (
     <div className="space-y-5 pb-16">
@@ -337,10 +288,12 @@ const TakeawayManagementPage: React.FC = () => {
             urgency: 'all',
             sortBy: 'newest',
             viewMode: filters.viewMode,
+            advancedFilters: {},
           })
         }
         statusCounts={statusCounts}
         totalCount={takeaways.length}
+        filteredCount={filteredTakeaways.length}
         statusOptions={TAKEAWAY_STATUS_OPTIONS}
         allowedTypes={['takeaway']}
       />

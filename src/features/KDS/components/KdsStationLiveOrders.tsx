@@ -10,9 +10,9 @@ import {
   UtensilsCrossed,
   ShoppingBag,
   Truck,
-  CheckSquare,
-  Square,
   Flame,
+  Timer,
+  Sparkles,
 } from 'lucide-react';
 import { formatOrderItemName } from '@/features/Order/lib/orderUtils';
 import type { KdsTicket, KdsStation, KdsTicketStatus } from '../types/kdsTypes';
@@ -25,6 +25,11 @@ interface KdsStationLiveOrdersProps {
   onReadyTicket: (ticketId: string) => void;
   onCancelTicketClick: (ticket: KdsTicket) => void;
   onToggleItem: (ticketId: string, itemId: string, completed: boolean) => void;
+  onUpdateItemStatus?: (
+    ticketId: string,
+    itemId: string,
+    status: 'pending' | 'in_progress' | 'ready'
+  ) => void;
   isDarkMode?: boolean;
 }
 
@@ -36,6 +41,7 @@ export const KdsStationLiveOrders: React.FC<KdsStationLiveOrdersProps> = ({
   onReadyTicket,
   onCancelTicketClick,
   onToggleItem,
+  onUpdateItemStatus,
   isDarkMode = true,
 }) => {
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
@@ -51,11 +57,18 @@ export const KdsStationLiveOrders: React.FC<KdsStationLiveOrdersProps> = ({
   }, []);
 
   const formatElapsed = (createdAt: string): string => {
-    if (!currentTimeMs) return '00:00';
+    if (!currentTimeMs || !createdAt) return '00:00';
     const diffSec = Math.max(0, Math.floor((currentTimeMs - new Date(createdAt).getTime()) / 1000));
     const mins = Math.floor(diffSec / 60);
     const secs = diffSec % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getItemElapsedTimeMinutes = (startedAt?: string | null, completedAt?: string | null): number => {
+    if (!startedAt || !currentTimeMs) return 0;
+    const startTime = new Date(startedAt).getTime();
+    const endTime = completedAt ? new Date(completedAt).getTime() : currentTimeMs;
+    return Math.max(0, Math.floor((endTime - startTime) / 1000 / 60));
   };
 
   const getElapsedSeconds = (createdAt: string): number => {
@@ -227,49 +240,45 @@ export const KdsStationLiveOrders: React.FC<KdsStationLiveOrdersProps> = ({
         </div>
 
         {/* Card Items List */}
-        <div className="p-3 sm:p-4 space-y-2.5 flex-1">
+        <div className="p-3 sm:p-4 space-y-2 flex-1">
           {ticket.items.map((item) => {
-            const isItemDone = !!item.completed;
+            const itemStatus = item.status || (item.completed ? 'ready' : 'pending');
+            const isItemReady = itemStatus === 'ready' || !!item.completed;
+            const isItemCooking = itemStatus === 'in_progress';
+            const elapsedMins = getItemElapsedTimeMinutes(item.startedAt, item.completedAt);
+
             return (
               <div
                 key={item._id}
-                onClick={() => onToggleItem(ticket._id, item._id, !isItemDone)}
-                className={`p-2 rounded-lg cursor-pointer transition-colors border ${
-                  isItemDone
+                className={`p-2.5 rounded-lg transition-colors border ${
+                  isItemReady
                     ? isDarkMode
-                      ? 'bg-slate-900/40 border-slate-800/60 opacity-60'
-                      : 'bg-slate-50 border-slate-200 opacity-60'
+                      ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : isItemCooking
+                    ? isDarkMode
+                      ? 'bg-amber-950/20 border-amber-800/50 text-amber-200'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
                     : isDarkMode
-                    ? 'bg-[#1E293B]/40 border-slate-800 hover:bg-[#1E293B]'
+                    ? 'bg-[#1E293B]/50 border-slate-800 hover:bg-[#1E293B]'
                     : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 flex-1">
-                    <button
-                      type="button"
-                      className="mt-0.5 shrink-0 text-slate-400 hover:text-white"
-                    >
-                      {isItemDone ? (
-                        <CheckSquare className="h-4 w-4 text-emerald-400" />
-                      ) : (
-                        <Square className="h-4 w-4 text-slate-500" />
-                      )}
-                    </button>
-
-                    <div className="flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
-                        <span className="font-mono font-black text-amber-500">
+                        <span className="font-mono font-black text-amber-500 shrink-0">
                           {item.quantity}x
                         </span>
                         <span
-                          className={
-                            isItemDone
-                              ? 'line-through text-slate-400'
+                          className={`truncate ${
+                            isItemReady
+                              ? 'line-through opacity-75'
                               : isDarkMode
                               ? 'text-slate-100'
                               : 'text-slate-900'
-                          }
+                          }`}
                         >
                           {formatOrderItemName(item.name || item.menuItemName || item)}
                         </span>
@@ -282,10 +291,92 @@ export const KdsStationLiveOrders: React.FC<KdsStationLiveOrdersProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {/* Status badge & action buttons */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Cooking Timer Badge */}
+                    {isItemCooking && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">
+                        <Timer className="h-2.5 w-2.5" />
+                        {elapsedMins} min
+                      </span>
+                    )}
+
+                    {isItemReady && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <Check className="h-2.5 w-2.5" />
+                        {elapsedMins > 0 ? `${elapsedMins} min` : 'READY'}
+                      </span>
+                    )}
+
+                    {/* Action button per item */}
+                    {itemStatus === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onUpdateItemStatus) {
+                            onUpdateItemStatus(ticket._id, item._id, 'in_progress');
+                          } else {
+                            onToggleItem(ticket._id, item._id, false);
+                          }
+                        }}
+                        className="px-2 py-1 rounded text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white uppercase tracking-wider shadow-2xs flex items-center gap-1 transition-colors"
+                        title="Start cooking item"
+                      >
+                        <Play className="h-2.5 w-2.5 fill-white" />
+                        <span>Start</span>
+                      </button>
+                    )}
+
+                    {isItemCooking && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onUpdateItemStatus) {
+                            onUpdateItemStatus(ticket._id, item._id, 'ready');
+                          } else {
+                            onToggleItem(ticket._id, item._id, true);
+                          }
+                        }}
+                        className="px-2 py-1 rounded text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white uppercase tracking-wider shadow-2xs flex items-center gap-1 transition-colors"
+                        title="Mark item ready"
+                      >
+                        <Check className="h-3 w-3" />
+                        <span>Ready</span>
+                      </button>
+                    )}
+
+                    {isItemReady && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleItem(ticket._id, item._id, false);
+                        }}
+                        className="p-1 text-emerald-400 hover:text-amber-400 transition-colors"
+                        title="Reopen item"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
+
+          {/* All items ready alert banner */}
+          {ticket.items.length > 0 &&
+            ticket.items.every((it) => it.status === 'ready' || it.completed) &&
+            ticket.status === 'ready' && (
+              <div className="mt-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-xs uppercase px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 animate-pulse text-center">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>TICKET READY FOR PICKUP</span>
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+            )}
         </div>
 
         {/* Card Actions Footer */}
