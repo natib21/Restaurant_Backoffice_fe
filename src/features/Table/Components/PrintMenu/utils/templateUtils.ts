@@ -150,9 +150,9 @@ export function filterAndGroupMenuData({
       image: item.image || item.imageUrl || (item as any).coverImage || undefined,
       categoryName: catName,
       categoryId: catId,
-      isVeg: item.isVeg,
-      isSpicy: item.isSpicy,
-      isAlcoholic: item.isAlcoholic,
+      isVeg: item.isVeg ?? undefined,
+      isSpicy: item.isSpicy ?? undefined,
+      isAlcoholic: item.isAlcoholic ?? undefined,
       isPopular: (item as any).isPopular || (item as any).isSpecial || false,
       tags: tags.length > 0 ? tags : undefined,
       variants,
@@ -178,5 +178,8 @@ export function getTableQrData(table?: Table | null, customUrl?: string): string
   if (customUrl) return customUrl;
   if (table.qrUrl) return table.qrUrl;
   if (table.qrCode && !table.qrCode.startsWith('data:image')) return table.qrCode;
-  return `https://restoflow.app/tables/${table._id || table.id}/order`;
+  return `https://restoflow.app/tables/${table._id || (table as any).id}/order`;
 }
+
+export const getTableScanUrl = getTableQrData;
+
