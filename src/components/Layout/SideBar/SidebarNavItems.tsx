@@ -196,6 +196,11 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
           to: '/orders/dine-in',
           icon: <UtensilsCrossed className="h-3.5 w-3.5" />,
         },
+        {
+          label: 'Payment Verification',
+          to: '/orders/payment-verification',
+          icon: <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />,
+        },
       ],
     },
     {
@@ -207,6 +212,11 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
           label: 'All Stations Overview',
           to: '/kds',
           icon: <LayoutDashboard className="h-3.5 w-3.5" />,
+        },
+        {
+          label: 'Ticket History',
+          to: '/kds/history',
+          icon: <Clock className="h-3.5 w-3.5" />,
         },
         {
           label: 'Grill Station',
@@ -452,30 +462,45 @@ export const SidebarNavItems: React.FC<SidebarNavItemsProps> = ({
       icon: <Settings className="h-4 w-4" />,
       subItems: [
         {
-          label: t('nav_generalSettings'),
-          to: '/settings?tab=profile',
-          icon: <Settings className="h-3.5 w-3.5" />,
+          label: 'Merchant Profile',
+          to: '/settings/profile',
+          icon: <Building2 className="h-3.5 w-3.5" />,
         },
         {
-          label: t('nav_taxes'),
-          to: '/settings?tab=taxes',
-          icon: <Percent className="h-3.5 w-3.5" />,
+          label: 'Brand & KYC',
+          to: '/settings/brand',
+          icon: <ShieldCheck className="h-3.5 w-3.5" />,
         },
         {
-          label: t('nav_paymentMethods'),
-          to: '/settings?tab=payments',
+          label: 'Kitchen Stations',
+          to: '/settings/kitchen-stations',
+          icon: <ChefHat className="h-3.5 w-3.5" />,
+        },
+        {
+          label: 'Order Flow & Routing',
+          to: '/settings/order-flow',
+          icon: <GitFork className="h-3.5 w-3.5" />,
+        },
+        {
+          label: 'Payment Methods',
+          to: '/settings/payment-methods',
           icon: <CreditCard className="h-3.5 w-3.5" />,
         },
         {
-          label: t('nav_printers'),
-          to: '/settings?tab=printers',
-          icon: <Printer className="h-3.5 w-3.5" />,
+          label: 'Team & Roles',
+          to: '/settings/team',
+          icon: <Users className="h-3.5 w-3.5" />,
         },
         {
-          label: t('nav_telegramBot'),
-          to: '/settings?tab=telegram',
+          label: 'Telegram Integration',
+          to: '/settings/telegram',
           icon: <SendHorizontal className="h-3.5 w-3.5" />,
           featureKey: 'telegram',
+        },
+        {
+          label: 'Billing & Plans',
+          to: '/settings/billing',
+          icon: <Receipt className="h-3.5 w-3.5" />,
         },
       ],
     },

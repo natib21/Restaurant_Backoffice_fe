@@ -54,8 +54,9 @@ export interface KdsTicketItem {
   notes?: string;
   modifiers?: KdsTicketItemModifier[];
   completed?: boolean;
-  completedAt?: string;
-  status?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  status?: 'pending' | 'in_progress' | 'ready' | string;
 }
 
 export interface KdsTicket {
@@ -85,6 +86,27 @@ export interface KdsTicket {
   assignedStaffId?: string;
   assignedStaffName?: string;
   targetPrepTimeSeconds?: number; // target time in seconds (e.g. 600)
+  durationSeconds?: number; // preparation turnaround duration in seconds
+  completedBy?: string;
+}
+
+export interface TicketHistoryFilterParams {
+  branchId?: string;
+  stationId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+}
+
+export interface TicketHistoryResponse {
+  tickets: KdsTicket[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
 }
 
 export interface KdsStationMetrics {
