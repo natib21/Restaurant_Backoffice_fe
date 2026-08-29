@@ -31,6 +31,7 @@ import CancelOrderModal from '../Components/CancelOrderModal';
 import AddItemsModal from '../Components/AddItemsModal';
 import OrderDetailsContent from '../Components/OrderDetailsPanel';
 import { playOrderSound } from '@/features/Order/lib/soundPlayer';
+import { filterAndSortOrders } from '../lib/orderFilterUtils';
 import { toast } from 'sonner';
 
 const DINE_IN_STATUS_OPTIONS = [
@@ -182,71 +183,33 @@ const DineInManagementPage: React.FC = () => {
     [updateStatus]
   );
   const handleServeOrder = useCallback(
-    (orderId: string) => updateStatus({ orderId, status: 'served' }),
-    [updateStatus]
+    (orderId: string) => {
+      const order = dineIns.find((o) => (o._id || (o as any).id) === orderId);
+      updateStatus(
+        { orderId, status: 'served' },
+        {
+          onSuccess: () => {
+            if (order && order.paymentStatus !== 'paid') {
+              toast.success(`Order #${order.orderNumber} marked as served!`, {
+                action: {
+                  label: 'Pay & Settle',
+                  onClick: () => {
+                    setPayingOrder(order);
+                  },
+                },
+              });
+            }
+          },
+        }
+      );
+    },
+    [updateStatus, dineIns]
   );
 
-  // Filtered dine-ins list
+  // Filtered dine-ins list using unified filter engine
   const filteredDineIns = useMemo(() => {
-    return dineIns
-      .filter((order) => {
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          const tableNum =
-            typeof order.table === 'object'
-              ? order.table?.tableNumber
-              : order.tableNumber || (order.table as string);
-          const matchesNum = order.orderNumber?.toLowerCase().includes(q);
-          const matchesCustomer = order.customerName?.toLowerCase().includes(q);
-          const matchesTable = tableNum?.toLowerCase().includes(q);
-          const matchesWaiter = order.assignedWaiter?.fullName
-            ?.toLowerCase()
-            .includes(q);
-
-          if (!matchesNum && !matchesCustomer && !matchesTable && !matchesWaiter) {
-            return false;
-          }
-        }
-
-        if (filters.status !== 'all' && order.status !== filters.status) {
-          return false;
-        }
-
-        if (
-          filters.paymentStatus !== 'all' &&
-          order.paymentStatus !== filters.paymentStatus
-        ) {
-          return false;
-        }
-
-        if (filters.urgency === 'urgent') {
-          const elapsed =
-            (now - new Date(order.placedAt).getTime()) / (1000 * 60);
-          if (elapsed < 20) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (filters.sortBy === 'newest') {
-          return (
-            new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'oldest') {
-          return (
-            new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'amount_high') {
-          return (b.totalAmount || 0) - (a.totalAmount || 0);
-        }
-        if (filters.sortBy === 'amount_low') {
-          return (a.totalAmount || 0) - (b.totalAmount || 0);
-        }
-        return 0;
-      });
-  }, [dineIns, filters]);
+    return filterAndSortOrders(dineIns, filters, now);
+  }, [dineIns, filters, now]);
 
   return (
     <div className="space-y-5 pb-16">
@@ -348,10 +311,12 @@ const DineInManagementPage: React.FC = () => {
             urgency: 'all',
             sortBy: 'newest',
             viewMode: filters.viewMode,
+            advancedFilters: {},
           })
         }
         statusCounts={statusCounts}
         totalCount={dineIns.length}
+        filteredCount={filteredDineIns.length}
         statusOptions={DINE_IN_STATUS_OPTIONS}
         allowedTypes={['dine_in']}
       />

@@ -66,6 +66,14 @@ import ReviewQueuePage from '@/features/Order/pages/ReviewQueuePage';
 import TableSessionsPage from '@/features/Table/pages/TableSessionsPage';
 import TableAssignmentsPage from '@/features/Table/pages/TableAssignmentsPage';
 import PrintMenuPage from '@/features/Table/pages/PrintMenuPage';
+import MerchantProfilePage from '@/features/Setting/pages/MerchantProfilePage';
+import BrandKycPage from '@/features/Setting/pages/BrandKycPage';
+import KitchenStationsPage from '@/features/Setting/pages/KitchenStationsPage';
+import OrderFlowSettingsPage from '@/features/Setting/pages/OrderFlowSettingsPage';
+import PaymentMethodsPage from '@/features/Setting/pages/PaymentMethodsPage';
+import TeamRolesPage from '@/features/Setting/pages/TeamRolesPage';
+import BillingPlansPage from '@/features/Setting/pages/BillingPlansPage';
+import PaymentVerificationPage from '@/features/Order/pages/PaymentVerificationPage';
 const AppRoutes = () => {
   return (
     <Routes>
@@ -81,6 +89,7 @@ const AppRoutes = () => {
       <Route element={<PrivateRoute />}>
 
         <Route path="/kds" element={<KdsMainPage />} />
+          <Route path="/kds/history" element={<KdsMainPage />} />
         <Route path="/kds/:stationId" element={<KdsMainPage />} />
         <Route path="/kds/tv" element={<KdsTvPage />} />
         <Route path="/kitchen" element={<Navigate to="/kds" replace />} />
@@ -162,7 +171,7 @@ const AppRoutes = () => {
           </Route>
 
           {/* Order Routes (Fixed Route Order) */}
-          <Route path="/orders" element={<OrdersLayout />}>
+         <Route path="/orders" element={<OrdersLayout />}>
             <Route index element={<ActiveOrdersPage />} />
             <Route path="active" element={<ActiveOrdersPage />} />
             <Route path="all" element={<AllOrdersPage />} />
@@ -176,6 +185,8 @@ const AppRoutes = () => {
             <Route path="delivery" element={<DeliveryManagementPage />} />
             <Route path="takeaway" element={<TakeawayManagementPage />} />
             <Route path="dine-in" element={<DineInManagementPage />} />
+            <Route path="payment-verification" element={<PaymentVerificationPage />} />
+            <Route path="verifications" element={<PaymentVerificationPage />} />
             <Route path=":orderId" element={<OrderDetailsPage />} />
             <Route path="*" element={<Navigate to="/orders/active" replace />} />
           </Route>
@@ -218,12 +229,23 @@ const AppRoutes = () => {
           {/* Settings Route */}
           <Route path="/settings">
             <Route index element={<SettingsPage />} />
+            <Route path="profile" element={<MerchantProfilePage />} />
+            <Route path="brand" element={<BrandKycPage />} />
+            <Route path="kyc" element={<BrandKycPage />} />
+            <Route path="kitchen-stations" element={<KitchenStationsPage />} />
+            <Route path="stations" element={<KitchenStationsPage />} />
+            <Route path="kitchen" element={<KitchenStationsPage />} />
+            <Route path="order-flow" element={<OrderFlowSettingsPage />} />
+            <Route path="routing" element={<OrderFlowSettingsPage />} />
+            <Route path="payment-methods" element={<PaymentMethodsPage />} />
+            <Route path="payments" element={<PaymentMethodsPage />} />
+            <Route path="team" element={<TeamRolesPage />} />
+            <Route path="roles" element={<TeamRolesPage />} />
             <Route path="telegram" element={<TelegramSettingsPage />} />
-            <Route path="payments" element={<Navigate to="/settings?tab=payments" replace />} />
-            <Route path="printers" element={<Navigate to="/settings?tab=printers" replace />} />
-            <Route path="taxes" element={<Navigate to="/settings?tab=taxes" replace />} />
-            <Route path="stations" element={<Navigate to="/settings?tab=stations" replace />} />
-            <Route path="kitchen" element={<Navigate to="/settings?tab=stations" replace />} />
+            <Route path="billing" element={<BillingPlansPage />} />
+            <Route path="plans" element={<BillingPlansPage />} />
+            <Route path="taxes" element={<PaymentMethodsPage />} />
+            <Route path="printers" element={<KitchenStationsPage />} />
           </Route>
 
 

@@ -18,6 +18,7 @@ import OrderDetailsContent from '../Components/OrderDetailsPanel';
 import PayOrderModal from '../Components/PayOrderModal';
 import CancelOrderModal from '../Components/CancelOrderModal';
 import OrdersEmptyState from '../Components/OrdersEmptyState';
+import { filterAndSortOrders } from '../lib/orderFilterUtils';
 import {
   Clock,
   Plus,
@@ -212,82 +213,9 @@ export const AllOrdersPage: React.FC = () => {
     []
   );
 
-  // Filter & Sort Pipeline
+  // Filter & Sort Pipeline using unified filter engine
   const filteredOrders = useMemo(() => {
-    return orders
-      .filter((order) => {
-        if (filters.search) {
-          const q = filters.search.toLowerCase();
-          const matchesNum = order.orderNumber?.toLowerCase().includes(q);
-          const matchesCustomer = order.customerName?.toLowerCase().includes(q);
-          const matchesPhone = order.customerPhone?.toLowerCase().includes(q);
-          const tableNum =
-            typeof order.table === 'object'
-              ? order.table?.tableNumber
-              : order.tableNumber || (order.table as string);
-          const matchesTable = tableNum?.toLowerCase().includes(q);
-          const matchesAddress = order.location?.formattedAddress
-            ?.toLowerCase()
-            .includes(q);
-
-          if (
-            !matchesNum &&
-            !matchesCustomer &&
-            !matchesPhone &&
-            !matchesTable &&
-            !matchesAddress
-          ) {
-            return false;
-          }
-        }
-
-        if (
-          filters.orderType !== 'all' &&
-          order.orderType?.toLowerCase() !== filters.orderType
-        ) {
-          return false;
-        }
-
-        if (filters.status !== 'all') {
-          if (filters.status === 'canceled') {
-            if (order.status !== 'canceled' && order.status !== 'cancelled') {
-              return false;
-            }
-          } else if (order.status !== filters.status) {
-            return false;
-          }
-        }
-
-        if (
-          filters.paymentStatus !== 'all' &&
-          order.paymentStatus !== filters.paymentStatus
-        ) {
-          return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (filters.sortBy === 'newest') {
-          return (
-            new Date(b.placedAt || b.createdAt).getTime() -
-            new Date(a.placedAt || a.createdAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'oldest') {
-          return (
-            new Date(a.placedAt || a.createdAt).getTime() -
-            new Date(b.placedAt || b.createdAt).getTime()
-          );
-        }
-        if (filters.sortBy === 'amount_high') {
-          return (b.totalAmount || 0) - (a.totalAmount || 0);
-        }
-        if (filters.sortBy === 'amount_low') {
-          return (a.totalAmount || 0) - (b.totalAmount || 0);
-        }
-        return 0;
-      });
+    return filterAndSortOrders(orders, filters);
   }, [orders, filters]);
 
   const handleFilterChange = (updated: Partial<OrderFilterState>) => {
@@ -303,6 +231,7 @@ export const AllOrdersPage: React.FC = () => {
       urgency: 'all',
       sortBy: 'newest',
       viewMode: filters.viewMode,
+      advancedFilters: {},
     });
   };
 
@@ -490,6 +419,7 @@ export const AllOrdersPage: React.FC = () => {
         onResetFilters={handleResetFilters}
         statusCounts={statusCounts}
         totalCount={orders.length}
+        filteredCount={filteredOrders.length}
         statusOptions={ALL_STATUS_OPTIONS}
       />
 

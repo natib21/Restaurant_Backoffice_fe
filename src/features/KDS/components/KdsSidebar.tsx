@@ -52,7 +52,7 @@ export const KdsSidebar: React.FC<KdsSidebarProps> = ({
     },
     {
       id: 'history' as KdsActiveTab,
-      label: 'Order History',
+      label: 'Ticket History',
       icon: Clock,
     },
     {

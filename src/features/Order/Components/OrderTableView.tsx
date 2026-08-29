@@ -13,20 +13,23 @@ import {
   Plus,
   ChefHat,
   Eye,
+  Check,
+  QrCode,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { formatOrderItemName } from '../lib/orderUtils';
+import BulkServeButton from './BulkServeButton';
 
 interface OrderTableViewProps {
   orders: OrderCardData[];
   onSelectOrder: (orderId: string) => void;
-  onAcceptOrder: (orderId: string) => void;
-  onPrepareOrder: (orderId: string) => void;
-  onReadyOrder: (orderId: string) => void;
-  onServeOrder: (orderId: string) => void;
-  onDispatchOrder: (orderId: string) => void;
-  onDeliverOrder: (orderId: string) => void;
+  onAcceptOrder?: (orderId: string) => void;
+  onPrepareOrder?: (orderId: string) => void;
+  onReadyOrder?: (orderId: string) => void;
+  onServeOrder?: (orderId: string) => void;
+  onDispatchOrder?: (orderId: string) => void;
+  onDeliverOrder?: (orderId: string) => void;
   onCompleteOrder?: (orderId: string) => void;
   onPayOrder: (order: OrderCardData) => void;
   onCancelOrder: (order: OrderCardData) => void;
@@ -86,6 +89,17 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                 items.reduce((s, i) => s + (i.quantity || 1), 0);
               const isPaid = order.paymentStatus === 'paid';
 
+              const isCustomerOrQr =
+                order.source === 'qr' ||
+                order.source === 'web' ||
+                order.source === 'customer' ||
+                order.channel === 'qr' ||
+                order.channel === 'web' ||
+                order.isQrOrder === true ||
+                (typeof (order as any).orderChannel === 'string' &&
+                  ((order as any).orderChannel.includes('qr') || (order as any).orderChannel.includes('web'))) ||
+                (typeof (order as any).notes === 'string' && (order as any).notes.toLowerCase().includes('qr'));
+
               let timeAgo = 'Just now';
               try {
                 timeAgo = formatDistanceToNow(new Date(order.placedAt), {
@@ -103,7 +117,18 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                 >
                   {/* Order Number */}
                   <td className="py-3 px-4 font-mono font-bold text-foreground">
-                    {order.orderNumber}
+                    <div className="flex items-center gap-1.5">
+                      <span>{order.orderNumber}</span>
+                      {isCustomerOrQr && (
+                        <Badge
+                          variant="outline"
+                          className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 text-[9px] font-semibold px-1.5 py-0"
+                        >
+                          <QrCode className="h-2.5 w-2.5 mr-0.5" />
+                          QR
+                        </Badge>
+                      )}
+                    </div>
                   </td>
 
                   {/* Order Type */}
@@ -202,106 +227,125 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                     className="py-3 px-4 text-right"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-center justify-end gap-1">
-                      {/* View button */}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onSelectOrder(orderId)}
-                        title="View Details"
-                        className="h-7 w-7 p-0"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                      {/* Bulk Serve Ready or Direct Items */}
+                      {items && items.length > 0 && (
+                        <BulkServeButton
+                          orderId={orderId}
+                          items={items}
+                          className="h-7 text-xs px-2"
+                        />
+                      )}
 
-                      {/* State Machine Transition Shortcuts */}
-                      {order.status === 'pending' && (
+                      {/* 1. When status is 'pending': Show Accept and Prepare buttons */}
+                      {order.status === 'pending' && onAcceptOrder && (
                         <Button
                           size="sm"
                           onClick={() => onAcceptOrder(orderId)}
-                          className="h-7 px-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
+                          title="Accept order"
+                          className="h-7 px-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1 shadow-2xs"
                         >
+                          <Check className="h-3 w-3" />
                           Accept
                         </Button>
                       )}
 
-                      {order.status === 'accepted' && (
+                      {order.status === 'pending' && onPrepareOrder && (
                         <Button
                           size="sm"
                           onClick={() => onPrepareOrder(orderId)}
-                          className="h-7 px-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                          title="Send to kitchen to prepare"
+                          className="h-7 px-2 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white gap-1 shadow-2xs"
                         >
-                          Start Preparing
+                          <ChefHat className="h-3 w-3" />
+                          Prepare
                         </Button>
                       )}
 
+                      {/* 2. When status is 'accepted': Show Prepare button to dispatch to kitchen */}
+                      {order.status === 'accepted' && onPrepareOrder && (
+                        <Button
+                          size="sm"
+                          onClick={() => onPrepareOrder(orderId)}
+                          title="Send to kitchen to prepare"
+                          className="h-7 px-2 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white gap-1 shadow-2xs"
+                        >
+                          <ChefHat className="h-3 w-3" />
+                          Prepare
+                        </Button>
+                      )}
+
+                      {/* 3. When status is 'preparing': Accept and Prepare buttons disappear! Show in-kitchen cooking indicator */}
                       {order.status === 'preparing' && (
-                        <Button
-                          size="sm"
-                          onClick={() => onReadyOrder(orderId)}
-                          className="h-7 px-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          Ready
-                        </Button>
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-orange-600 dark:text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-md">
+                          <ChefHat className="h-3 w-3 animate-pulse text-orange-500" />
+                          <span>Cooking</span>
+                        </div>
                       )}
 
-                      {order.status === 'ready' &&
-                        order.orderType !== 'delivery' && (
-                          <Button
-                            size="sm"
-                            onClick={() => onServeOrder(orderId)}
-                            className="h-7 px-2 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white"
-                          >
-                            Serve
-                          </Button>
-                        )}
-
-                      {order.status === 'ready' &&
-                        order.orderType === 'delivery' && (
-                          <Button
-                            size="sm"
-                            onClick={() => onDispatchOrder(orderId)}
-                            className="h-7 px-2 text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white"
-                          >
-                            Dispatch
-                          </Button>
-                        )}
-
-                      {order.status === 'out_for_delivery' && (
-                        <Button
-                          size="sm"
-                          onClick={() => onDeliverOrder(orderId)}
-                          className="h-7 px-2 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white"
-                        >
-                          Delivered
-                        </Button>
+                      {/* 4. When status is 'ready': Show Serve button (or Dispatch for delivery) */}
+                      {order.status === 'ready' && (
+                        <>
+                          {order.orderType === 'delivery' ? (
+                            (onDispatchOrder || onDeliverOrder) && (
+                              <Button
+                                size="sm"
+                                onClick={() => (onDispatchOrder || onDeliverOrder)?.(orderId)}
+                                title="Dispatch order for delivery"
+                                className="h-7 px-2 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white gap-1 shadow-2xs"
+                              >
+                                <Truck className="h-3 w-3" />
+                                Dispatch
+                              </Button>
+                            )
+                          ) : (
+                            onServeOrder && (
+                              <Button
+                                size="sm"
+                                onClick={() => onServeOrder(orderId)}
+                                title="Mark as served to table/customer"
+                                className="h-7 px-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1 shadow-2xs"
+                              >
+                                <UtensilsCrossed className="h-3 w-3" />
+                                Serve
+                              </Button>
+                            )
+                          )}
+                        </>
                       )}
 
-                      {(order.status === 'served' ||
-                        order.status === 'delivered') &&
-                        !isPaid && (
+                      {/* 5. When status is ready, served, or delivered and unpaid: Pay & Settle button appears */}
+                      {!isPaid &&
+                        (order.status === 'served' ||
+                          order.status === 'delivered' ||
+                          order.status === 'ready') && (
                           <Button
                             size="sm"
                             onClick={() => onPayOrder(order)}
-                            className="h-7 px-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                            title="Settle payment"
+                            className="h-7 px-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-2xs"
                           >
+                            <CreditCard className="h-3 w-3" />
                             Pay & Settle
                           </Button>
                         )}
 
-                      {(order.status === 'served' ||
-                        order.status === 'delivered') &&
-                        isPaid && (
+                      {/* 6. When status is served or delivered and already paid: Complete button appears */}
+                      {(order.status === 'served' || order.status === 'delivered') &&
+                        isPaid &&
+                        onCompleteOrder && (
                           <Button
                             size="sm"
-                            onClick={() => onCompleteOrder ? onCompleteOrder(orderId) : onServeOrder(orderId)}
-                            className="h-7 px-2 text-xs font-semibold bg-slate-900 hover:bg-black dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white gap-1"
+                            onClick={() => onCompleteOrder(orderId)}
+                            title="Complete order"
+                            className="h-7 px-2 text-xs font-semibold bg-slate-700 hover:bg-slate-800 text-white gap-1 shadow-2xs"
                           >
                             <CheckCircle2 className="h-3 w-3" />
                             Complete
                           </Button>
                         )}
 
+                      {/* Add Items (Pending / Accepted / Preparing) */}
                       {['pending', 'accepted', 'preparing'].includes(
                         order.status
                       ) && (
@@ -316,7 +360,21 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                         </Button>
                       )}
 
+                      {/* View button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onSelectOrder(orderId)}
+                        title="View Details"
+                        className="h-7 px-2 text-xs gap-1"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View</span>
+                      </Button>
+
+                      {/* Cancel order */}
                       {order.status !== 'completed' &&
+                        order.status !== 'served' &&
                         order.status !== 'canceled' && (
                           <Button
                             size="sm"
