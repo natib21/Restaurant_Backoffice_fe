@@ -39,22 +39,69 @@ export interface MerchantFeatures {
   };
 }
 
+export interface MerchantSettings {
+  // QR Code
+  showTableNumberOnQR?: boolean;
+  qrStyle?: 'classic' | 'modern' | 'rounded' | 'dots';
+  qrLogoEnabled?: boolean;
+  qrForegroundColor?: string;
+  qrBackgroundColor?: string;
+
+  // Tips
+  tipsEnabled?: boolean;
+  tipOptions?: number[];
+  allowCustomTip?: boolean;
+
+  // Language
+  language?: 'en' | 'am' | 'both';
+  defaultLanguage?: 'en' | 'am';
+
+  // Notifications
+  notifications?: {
+    orderSoundEnabled?: boolean;
+    newOrderSound?: string;
+    smsNotifications?: boolean;
+    emailNotifications?: boolean;
+  };
+
+  // Pricing
+  currency?: 'ETB' | 'USD';
+  taxRate?: number;
+  serviceCharge?: number;
+
+  // Operations
+  onlineOrderingEnabled?: boolean;
+  deliveryEnabled?: boolean;
+  pickupEnabled?: boolean;
+  autoAcceptOrders?: boolean;
+  requireWaiterConfirmation?: boolean;
+  prepTimeMinutes?: number;
+
+  businessHours?: Record<string, { enabled: boolean; open: string; close: string }>;
+  [key: string]: any;
+}
+
 export interface Merchant {
   _id: string;
   businessName: string;
-  ownerName: string;
+  ownerName?: string;
   slug?: string;
+  customDomain?: string | null;
+  customDomainVerified?: boolean;
   phone: string;
-  taxId: string;
+  taxId?: string;
   location: MerchantLocation;
   address?: string;
-  logo?: string;
-  coverImage?: string;
+  sector?: 'Cafe' | 'Restaurant' | 'Hotel' | 'Food Truck' | 'Ghost Kitchen' | 'Bakery' | 'Other' | string;
+  cuisineType?: string[];
+  brandColor?: string;
+  logo?: any;
+  coverImage?: any;
   documents?: MerchantDocument[];
-  tinId: string;
-  licenseNumber?: string; // Added
+  tinId?: string;
+  licenseNumber?: string;
   tradeLicense?: {
-    url: string;
+    url?: string;
     public_id?: string;
     verified?: boolean;
     licenseNumber?: string;
@@ -66,13 +113,9 @@ export interface Merchant {
   features?: MerchantFeatures;
   mode?: string;
   status: 'pending' | 'approved' | 'suspended' | 'inactive';
-  isActive: boolean;
-  subscriptionPlan?: 'free' | 'basic' | 'pro' | 'enterprise' | 'trial' | string;
-  settings?: {
-    currency?: 'ETB' | 'USD' | string;
-    language?: 'en' | 'am' | 'both' | string;
-    [key: string]: any;
-  };
+  isActive?: boolean;
+  subscriptionPlan?: 'free' | 'basic' | 'pro' | 'enterprise' | 'feature' | 'trial' | string;
+  settings?: MerchantSettings;
   owner: {
     fullName: string;
     gender: 'Male' | 'Female';
@@ -88,6 +131,7 @@ export interface Merchant {
   };
   suspendedReason?: string;
   suspendedAt?: string;
+  branchCounter?: number;
   createdAt: string;
   updatedAt: string;
   // sometimes populated
@@ -205,11 +249,11 @@ const fetchMerchantStats = async (id: string): Promise<any> => {
 
 const fetchMyMerchant = async (): Promise<Merchant> => {
   try {
-    const { data } = await api.get('/v1/merchant/me');
+    const { data } = await api.get('/v1/merchants/me');
     return data?.data?.merchant || data?.data?.user?.merchant || data?.merchant || data?.user?.merchant || data?.data;
   } catch (err: any) {
     try {
-      const { data } = await api.get('/v1/merchants/me');
+      const { data } = await api.get('/v1/merchant/me');
       return data?.data?.merchant || data?.data?.user?.merchant || data?.merchant || data?.user?.merchant || data?.data;
     } catch {
       const { data } = await api.get('/v1/users/me');
@@ -220,14 +264,16 @@ const fetchMyMerchant = async (): Promise<Merchant> => {
 
 const updateMe = async (payload: any): Promise<Merchant> => {
   let data;
-  if (payload instanceof FormData) {
-    const res = await api.patch('/v1/merchants/me', payload, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    data = res.data;
-  } else {
+  try {
     const res = await api.patch('/v1/merchants/me', payload);
     data = res.data;
+  } catch (err: any) {
+    try {
+      const res = await api.patch('/v1/merchant/me', payload);
+      data = res.data;
+    } catch (fallbackErr) {
+      throw err;
+    }
   }
   return data?.data?.merchant || data?.merchant || data?.data;
 };
