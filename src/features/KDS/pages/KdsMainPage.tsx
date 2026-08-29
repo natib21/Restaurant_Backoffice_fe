@@ -1,6 +1,6 @@
 // src/features/KDS/pages/KdsMainPage.tsx
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   useKitchenStationsQuery,
   useKitchenTicketsQuery,
@@ -9,6 +9,7 @@ import {
   useReadyTicketMutation,
   useCancelTicketMutation,
   useToggleTicketItemMutation,
+  useUpdateTicketItemStatusMutation,
 } from '@/api/Queries/kitchenQueries';
 import { useKdsAudio } from '../hooks/useKdsAudio';
 import { useKdsSocket } from '../hooks/useKdsSocket';
@@ -32,11 +33,36 @@ import { KdsCancelTicketModal } from '../components/KdsCancelTicketModal';
 export const KdsMainPage: React.FC = () => {
   const { stationId: routeStationId } = useParams<{ stationId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  const [selectedStationId, setSelectedStationId] = useState<string>(routeStationId || 'all');
-  const [activeTab, setActiveTab] = useState<KdsActiveTab>('orders');
+  const isHistoryRoute =
+    routeStationId === 'history' ||
+    location.pathname === '/kds/history' ||
+    searchParams.get('tab') === 'history';
+
+  const [selectedStationId, setSelectedStationId] = useState<string>(
+    routeStationId && routeStationId !== 'history' ? routeStationId : 'all'
+  );
+  const [activeTab, setActiveTab] = useState<KdsActiveTab>(
+    isHistoryRoute ? 'history' : 'orders'
+  );
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  // Synchronize route and tab changes
+  useEffect(() => {
+    if (
+      routeStationId === 'history' ||
+      location.pathname === '/kds/history' ||
+      searchParams.get('tab') === 'history'
+    ) {
+      setActiveTab('history');
+      setSelectedStationId('all');
+    } else if (routeStationId && routeStationId !== 'history') {
+      setSelectedStationId(routeStationId);
+    }
+  }, [routeStationId, location.pathname, searchParams]);
 
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -84,13 +110,31 @@ export const KdsMainPage: React.FC = () => {
   const readyMutation = useReadyTicketMutation();
   const cancelMutation = useCancelTicketMutation();
   const toggleItemMutation = useToggleTicketItemMutation();
+  const updateItemStatusMutation = useUpdateTicketItemStatusMutation();
 
   const handleSelectStation = (stationId: string) => {
     setSelectedStationId(stationId);
+    if (activeTab === 'history') {
+      // Stay on history view with station filter updated
+      return;
+    }
     if (stationId === 'all') {
       navigate('/kds');
     } else {
       navigate(`/kds/${stationId.toLowerCase()}`);
+    }
+  };
+
+  const handleTabChange = (tab: KdsActiveTab) => {
+    setActiveTab(tab);
+    if (tab === 'history') {
+      navigate('/kds/history');
+    } else if (tab === 'orders') {
+      if (selectedStationId === 'all') {
+        navigate('/kds');
+      } else {
+        navigate(`/kds/${selectedStationId.toLowerCase()}`);
+      }
     }
   };
 
@@ -116,7 +160,7 @@ export const KdsMainPage: React.FC = () => {
         currentStation={currentStationObj}
         activeStaffCount={activeStaffCount}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onEmergencyStopClick={() => setIsEmergencyStopOpen(true)}
         onHelpClick={() => setIsSettingsOpen(true)}
         onTvModeClick={() => navigate('/kds/tv')}
@@ -166,12 +210,20 @@ export const KdsMainPage: React.FC = () => {
                 onToggleItem={(ticketId, itemId, completed) =>
                   toggleItemMutation.mutate({ ticketId, itemId, completed })
                 }
+                onUpdateItemStatus={(ticketId, itemId, status) =>
+                  updateItemStatusMutation.mutate({ ticketId, itemId, status })
+                }
                 isDarkMode={isDarkMode}
               />
             ))}
 
           {activeTab === 'history' && (
-            <KdsOrderHistory tickets={tickets} stations={stations} isDarkMode={isDarkMode} />
+            <KdsOrderHistory
+              stationId={stationTargetId}
+              branchId={currentStationObj?.branchId}
+              stations={stations}
+              isDarkMode={isDarkMode}
+            />
           )}
 
           {activeTab === 'performance' && (

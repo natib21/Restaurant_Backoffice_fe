@@ -17,6 +17,9 @@ import {
   PackageCheck,
   Truck,
   CheckCircle2,
+  Check,
+  QrCode,
+  UtensilsCrossed,
 } from 'lucide-react';
 import {
   useOrderByIdQuery,
@@ -126,120 +129,130 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
       </div>
 
       <div className="p-4 space-y-4 max-w-full overflow-y-auto">
-        {/* 2. State Transition Action Strip */}
-        <div className="bg-card p-3 rounded-xl border shadow-2xs space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Quick Actions
-          </p>
+        {/* 2. Order Status Info & Action Strip */}
+        <div className="bg-card p-3 rounded-xl border shadow-2xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Order Actions
+            </p>
+            <span className="text-[10px] text-muted-foreground italic">
+              Status is auto-derived from items
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {order.status === 'pending' && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  updateStatus({ orderId: order._id, status: 'accepted' })
-                }
-                disabled={isUpdatingStatus}
-                className="h-8 text-xs font-semibold bg-primary"
-              >
-                Accept Order
-              </Button>
+            {/* Bulk serve ready items */}
+            {order.items && order.items.length > 0 && (
+              <BulkServeButton
+                orderId={order._id}
+                items={order.items}
+                onSuccess={() => refetch()}
+              />
             )}
 
+            {/* 1. When status is 'pending': Show Accept and Prepare buttons */}
+            {order.status === 'pending' && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={isUpdatingStatus}
+                  onClick={() => updateStatus({ orderId: order._id, status: 'accepted' })}
+                  className="h-8 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Accept Order
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={isUpdatingStatus}
+                  onClick={() => updateStatus({ orderId: order._id, status: 'preparing' })}
+                  className="h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white gap-1"
+                >
+                  <ChefHat className="h-3.5 w-3.5" />
+                  Prepare Order
+                </Button>
+              </>
+            )}
+
+            {/* 2. When status is 'accepted': Show Prepare button to dispatch to kitchen */}
             {order.status === 'accepted' && (
               <Button
                 size="sm"
-                onClick={() =>
-                  updateStatus({ orderId: order._id, status: 'preparing' })
-                }
                 disabled={isUpdatingStatus}
-                className="h-8 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                onClick={() => updateStatus({ orderId: order._id, status: 'preparing' })}
+                className="h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white gap-1"
               >
                 <ChefHat className="h-3.5 w-3.5" />
-                Start Preparing
+                Prepare Order (Send to Kitchen)
               </Button>
             )}
 
+            {/* 3. When status is 'preparing': Accept & Prepare buttons disappear as order is in kitchen */}
             {order.status === 'preparing' && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  updateStatus({ orderId: order._id, status: 'ready' })
-                }
-                disabled={isUpdatingStatus}
-                className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-              >
-                <PackageCheck className="h-3.5 w-3.5" />
-                Mark Ready
-              </Button>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-lg">
+                <ChefHat className="h-4 w-4 animate-pulse text-orange-500" />
+                <span>Cooking in Kitchen (Ticket Active in KDS)</span>
+              </div>
             )}
 
-            {order.status === 'ready' &&
-              order.orderType !== 'delivery' && (
+            {/* 4. When status is 'ready': Show Serve button (or Dispatch) */}
+            {order.status === 'ready' && (
+              <>
+                {order.orderType === 'delivery' ? (
+                  <Button
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => updateStatus({ orderId: order._id, status: 'out_for_delivery' })}
+                    className="h-8 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white gap-1"
+                  >
+                    <Truck className="h-3.5 w-3.5" />
+                    Dispatch Delivery
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => updateStatus({ orderId: order._id, status: 'served' })}
+                    className="h-8 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                  >
+                    <UtensilsCrossed className="h-3.5 w-3.5" />
+                    Mark as Served
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* 5. When status is ready, served, or delivered and unpaid: Settle Payment button appears */}
+            {(order.status === 'ready' ||
+              order.status === 'served' ||
+              order.status === 'out_for_delivery' ||
+              order.status === 'delivered') &&
+              !isPaid &&
+              !isCanceled && (
                 <Button
                   size="sm"
-                  onClick={() =>
-                    updateStatus({ orderId: order._id, status: 'served' })
-                  }
-                  disabled={isUpdatingStatus}
-                  className="h-8 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => setIsPayOpen(true)}
+                  className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                 >
-                  Mark Served
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Settle Payment
                 </Button>
               )}
 
-            {order.status === 'ready' &&
-              order.orderType === 'delivery' && (
+            {/* 6. When status is served or delivered and paid: Complete Order button appears */}
+            {(order.status === 'served' ||
+              order.status === 'out_for_delivery' ||
+              order.status === 'delivered') &&
+              isPaid && (
                 <Button
                   size="sm"
-                  onClick={() =>
-                    updateStatus({
-                      orderId: order._id,
-                      status: 'out_for_delivery',
-                    })
-                  }
                   disabled={isUpdatingStatus}
-                  className="h-8 text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white gap-1"
+                  onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
+                  className="h-8 text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white gap-1"
                 >
-                  <Truck className="h-3.5 w-3.5" />
-                  Dispatch Order
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Complete Order
                 </Button>
               )}
-
-            {order.status === 'out_for_delivery' && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  updateStatus({ orderId: order._id, status: 'delivered' })
-                }
-                disabled={isUpdatingStatus}
-                className="h-8 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white"
-              >
-                Mark Delivered
-              </Button>
-            )}
-
-            {!isPaid && !isCanceled && (
-              <Button
-                size="sm"
-                onClick={() => setIsPayOpen(true)}
-                className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-              >
-                <CreditCard className="h-3.5 w-3.5" />
-                Settle Payment
-              </Button>
-            )}
-
-            {isPaid && (order.status === 'served' || order.status === 'delivered') && (
-              <Button
-                size="sm"
-                onClick={() => updateStatus({ orderId: order._id, status: 'completed' })}
-                disabled={isUpdatingStatus}
-                className="h-8 text-xs font-semibold bg-slate-900 hover:bg-black dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white gap-1"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Complete Order
-              </Button>
-            )}
 
             {['pending', 'accepted', 'preparing'].includes(order.status) && (
               <Button
@@ -253,7 +266,7 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
               </Button>
             )}
 
-            {!isCanceled && order.status !== 'completed' && (
+            {!isCanceled && order.status !== 'completed' && order.status !== 'served' && (
               <Button
                 size="sm"
                 variant="outline"
@@ -261,7 +274,7 @@ const OrderDetailsContent = ({ orderId }: { orderId: string }) => {
                 className="h-8 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
               >
                 <XCircle className="h-3.5 w-3.5 mr-1" />
-                Cancel
+                Cancel Order
               </Button>
             )}
           </div>

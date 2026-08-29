@@ -203,9 +203,26 @@ const ActiveOrdersPage: React.FC = () => {
 
   const handleServeOrder = useCallback(
     (orderId: string) => {
-      updateStatus({ orderId, status: 'served' });
+      const order = orders.find((o) => (o._id || (o as any).id) === orderId);
+      updateStatus(
+        { orderId, status: 'served' },
+        {
+          onSuccess: () => {
+            if (order && order.paymentStatus !== 'paid') {
+              toast.success(`Order #${order.orderNumber} served!`, {
+                action: {
+                  label: 'Pay & Settle',
+                  onClick: () => {
+                    setPayingOrder(order);
+                  },
+                },
+              });
+            }
+          },
+        }
+      );
     },
-    [updateStatus]
+    [updateStatus, orders]
   );
 
   const handleDispatchOrder = useCallback(

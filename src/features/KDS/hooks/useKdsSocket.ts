@@ -1,10 +1,10 @@
-// src/features/KDS/hooks/useKdsSocket.ts
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { kitchenKeys } from '@/api/Queries/kitchenQueries';
-import type { KdsTicket } from '../types/kdsTypes';
+import type { KdsTicket, KdsTicketStatus } from '../types/kdsTypes';
 import { useKdsAudio } from './useKdsAudio';
+import { toast } from 'sonner';
 
 export type KdsConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
 
@@ -53,6 +53,30 @@ export function useKdsSocket({
         timeout: 10000,
       });
 
+      const joinRooms = () => {
+        const validBranch = branchId && branchId !== 'default' ? branchId : undefined;
+        const validStation = stationId && stationId !== 'all' ? stationId : undefined;
+
+        if (validStation) {
+          socket.emit('join', {
+            room: `station-${validStation}`,
+            type: 'kitchen',
+          });
+        }
+
+        if (validBranch) {
+          socket.emit('join', {
+            room: `branch-${validBranch}`,
+            type: 'kitchen',
+          });
+        }
+
+        socket.emit('kds:subscribe', {
+          branchId: validBranch,
+          stationId: validStation,
+        });
+      };
+
       socket.on('connect', () => {
         setConnectionStatus('connected');
         setLastSyncTime(new Date());
@@ -60,15 +84,7 @@ export function useKdsSocket({
           playReconnected();
           wasDisconnectedRef.current = false;
         }
-
-        // Subscribe to KDS branch and station room
-        const validBranch = branchId && branchId !== 'default' ? branchId : undefined;
-        const validStation = stationId && stationId !== 'all' ? stationId : undefined;
-
-        socket.emit('kds:subscribe', {
-          branchId: validBranch,
-          stationId: validStation,
-        });
+        joinRooms();
       });
 
       socket.on('disconnect', () => {
@@ -88,10 +104,8 @@ export function useKdsSocket({
       socket.on('reconnect', () => {
         setConnectionStatus('connected');
         setLastSyncTime(new Date());
-        socket.emit('kds:subscribe', {
-          branchId,
-          stationId: stationId === 'all' ? undefined : stationId,
-        });
+        joinRooms();
+        queryClient.invalidateQueries({ queryKey: kitchenKeys.all });
       });
 
       // Ticket Created
@@ -127,7 +141,79 @@ export function useKdsSocket({
       socket.on('ticket:created', handleTicketCreated);
       socket.on('ticket:new', handleTicketCreated);
 
-      // Ticket Updated / Status Changed
+      // Event 1: ticket:item-updated (when kitchen staff marks item in_progress or ready)
+      const handleTicketItemUpdated = (data: any) => {
+        setLastSyncTime(new Date());
+        const { ticketId, itemId, status, ticketStatus, startedAt, completedAt } = data || {};
+        if (!ticketId || !itemId) return;
+
+        queryClient.setQueryData<KdsTicket[]>(
+          kitchenKeys.tickets(branchId, stationId),
+          (old = []) => {
+            return old.map((t) => {
+              if (t._id === ticketId) {
+                const updatedItems = t.items.map((item) => {
+                  if (item._id === itemId || item.itemId === itemId) {
+                    return {
+                      ...item,
+                      status: status || item.status,
+                      completed: status === 'ready',
+                      startedAt: startedAt !== undefined ? startedAt : item.startedAt,
+                      completedAt: completedAt !== undefined ? completedAt : item.completedAt,
+                    };
+                  }
+                  return item;
+                });
+                return {
+                  ...t,
+                  items: updatedItems,
+                  status: (ticketStatus as KdsTicketStatus) || t.status,
+                };
+              }
+              return t;
+            });
+          }
+        );
+
+        queryClient.invalidateQueries({ queryKey: kitchenKeys.all });
+      };
+
+      socket.on('ticket:item-updated', handleTicketItemUpdated);
+
+      // Event 2: ticket:status-changed (when ticket status changes, e.g. all items ready)
+      const handleTicketStatusChanged = (data: any) => {
+        setLastSyncTime(new Date());
+        const ticketId = data?.ticketId || data?._id;
+        const newStatus = data?.newStatus || data?.status;
+        if (!ticketId) return;
+
+        queryClient.setQueryData<KdsTicket[]>(
+          kitchenKeys.tickets(branchId, stationId),
+          (old = []) => {
+            return old.map((t) => (t._id === ticketId ? { ...t, status: newStatus } : t));
+          }
+        );
+
+        if (newStatus === 'ready') {
+          playTicketReady();
+          toast.success(`🔔 TICKET #${data?.ticketNumber || ticketId.slice(-4)} IS READY!`, {
+            duration: 6000,
+          });
+          if ('vibrate' in navigator) {
+            try {
+              navigator.vibrate([200, 100, 200]);
+            } catch (err) {
+              console.debug('Vibration not permitted or supported:', err);
+            }
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: kitchenKeys.all });
+      };
+
+      socket.on('ticket:status-changed', handleTicketStatusChanged);
+
+      // Legacy Ticket Updated
       const handleTicketUpdated = (data: any) => {
         setLastSyncTime(new Date());
         const updatedTicket: KdsTicket = data.ticket || data;
@@ -155,7 +241,6 @@ export function useKdsSocket({
       };
 
       socket.on('ticket:updated', handleTicketUpdated);
-      socket.on('ticket:status-changed', handleTicketUpdated);
 
       // Ticket Canceled
       socket.on('ticket:canceled', (canceledTicket: KdsTicket) => {

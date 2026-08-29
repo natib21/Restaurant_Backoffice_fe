@@ -1,15 +1,16 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import { useBulkServeReadyItemsMutation, type OrderItem } from '@/api/Queries/orderQuery';
+import { CheckCircle2, Loader2, Sparkles, Utensils } from 'lucide-react';
+import { useBulkServeReadyItemsMutation, useUpdateOrderItemStatusMutation, type OrderItem } from '@/api/Queries/orderQuery';
 import { cn } from '@/lib/utils';
 
 interface BulkServeButtonProps {
   orderId: string;
-  items?: OrderItem[];
+  items?: any[];
   variant?: 'default' | 'outline' | 'secondary';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   className?: string;
+  onSuccess?: () => void;
 }
 
 export const BulkServeButton: React.FC<BulkServeButtonProps> = ({
@@ -18,6 +19,7 @@ export const BulkServeButton: React.FC<BulkServeButtonProps> = ({
   variant = 'default',
   size = 'sm',
   className,
+  onSuccess,
 }) => {
   const { mutate: bulkServe, isPending } = useBulkServeReadyItemsMutation();
 
@@ -25,7 +27,13 @@ export const BulkServeButton: React.FC<BulkServeButtonProps> = ({
     (item) => (item.status || 'pending').toLowerCase() === 'ready'
   );
 
-  if (readyItems.length === 0) return null;
+  const directPendingItems = items.filter(
+    (item) => item.requiresKitchen === false && (item.status || 'pending').toLowerCase() === 'pending'
+  );
+
+  const totalServable = readyItems.length + directPendingItems.length;
+
+  if (totalServable === 0) return null;
 
   return (
     <Button
@@ -33,14 +41,21 @@ export const BulkServeButton: React.FC<BulkServeButtonProps> = ({
       size={size}
       onClick={(e) => {
         e.stopPropagation();
-        bulkServe({ orderId });
+        bulkServe(
+          { orderId },
+          {
+            onSuccess: () => {
+              onSuccess?.();
+            },
+          }
+        );
       }}
       disabled={isPending}
       className={cn(
-        'bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs transition-all animate-bounce',
+        'bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-xs transition-all',
+        readyItems.length > 0 && 'animate-pulse',
         className
       )}
-      style={{ animationIterationCount: 2 }}
     >
       {isPending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -48,7 +63,9 @@ export const BulkServeButton: React.FC<BulkServeButtonProps> = ({
         <CheckCircle2 className="h-3.5 w-3.5" />
       )}
       <span>
-        Serve All Ready ({readyItems.length})
+        {readyItems.length > 0
+          ? `Serve Ready Items (${readyItems.length})`
+          : `Serve Direct Items (${directPendingItems.length})`}
       </span>
     </Button>
   );
