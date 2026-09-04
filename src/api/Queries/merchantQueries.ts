@@ -249,7 +249,7 @@ const fetchMerchantStats = async (id: string): Promise<any> => {
 
 const fetchMyMerchant = async (): Promise<Merchant> => {
   try {
-    const { data } = await api.get('/v1/merchants/me');
+    const { data } = await api.get('/v1/merchant/me');
     return data?.data?.merchant || data?.data?.user?.merchant || data?.merchant || data?.user?.merchant || data?.data;
   } catch (err: any) {
     try {
@@ -265,7 +265,7 @@ const fetchMyMerchant = async (): Promise<Merchant> => {
 const updateMe = async (payload: any): Promise<Merchant> => {
   let data;
   try {
-    const res = await api.patch('/v1/merchants/me', payload);
+    const res = await api.patch('/v1/merchant/me', payload);
     data = res.data;
   } catch (err: any) {
     try {
