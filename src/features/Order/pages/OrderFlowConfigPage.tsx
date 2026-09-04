@@ -71,7 +71,21 @@ const CHANNELS: ChannelMeta[] = [
     badgeText: 'Self-Service QR',
     description:
       'Orders submitted by customers scanning table QR codes or ordering via your digital menu webpage.',
-    exampleUse: 'Recommended: Review by Waiter before sending tickets to kitchen to prevent accidental/fake orders.',
+    exampleUse:
+      'Recommended: Review by Waiter before sending tickets to kitchen to prevent accidental/fake orders.',
+  },
+  {
+    id: 'qr',
+    title: 'QR Customer Orders',
+    subtitle: 'Dedicated QR table ordering flow',
+    icon: Smartphone,
+    colorClass: 'text-teal-600 bg-teal-50 border-teal-200 dark:bg-teal-950/40 dark:border-teal-800',
+    badgeBg: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300',
+    badgeText: 'QR Orders',
+    description:
+      'Orders placed by customers scanning QR code at the table. This is the customer-facing mobile/table ordering path.',
+    exampleUse:
+      'Recommended: Require waiter review for table orders to prevent accidental or fake payment-free orders.',
   },
   {
     id: 'telegram',
@@ -83,7 +97,8 @@ const CHANNELS: ChannelMeta[] = [
     badgeText: 'Telegram Bot',
     description:
       'Orders placed through the Telegram food bot and chat channels.',
-    exampleUse: 'Recommended: Review by Support or Waiter to verify address and customer contact.',
+    exampleUse:
+      'Recommended: Review by Support or Waiter to verify address and customer contact.',
   },
   {
     id: 'admin',
@@ -95,7 +110,8 @@ const CHANNELS: ChannelMeta[] = [
     badgeText: 'Call-in & Admin',
     description:
       'Orders recorded by managers, telephone support, or catering dispatch personnel.',
-    exampleUse: 'Can be reviewed by Support or sent immediately to kitchen.',
+    exampleUse:
+      'Can be reviewed by Support or sent immediately to kitchen.',
   },
   {
     id: 'waiter',
@@ -107,7 +123,8 @@ const CHANNELS: ChannelMeta[] = [
     badgeText: 'In-House POS',
     description:
       'Orders taken directly at the table or counter by your staff using merchant POS handhelds.',
-    exampleUse: 'Usually direct to kitchen since staff already confirmed the customer order in person.',
+    exampleUse:
+      'Usually direct to kitchen since staff already confirmed the customer order in person.',
   },
 ];
 
@@ -156,33 +173,36 @@ export const OrderFlowConfigPage: React.FC = () => {
   };
 
   // Presets
-  const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
-    if (preset === 'standard') {
-      setChannelsState({
-        waiter: { requiresReview: false, reviewerRole: null },
-        web: { requiresReview: true, reviewerRole: 'waiter' },
-        admin: { requiresReview: true, reviewerRole: 'support' },
-        telegram: { requiresReview: true, reviewerRole: 'support' },
-      });
-      toast.info('Applied "Standard Balanced" flow preset');
-    } else if (preset === 'automated') {
-      setChannelsState({
-        waiter: { requiresReview: false, reviewerRole: null },
-        web: { requiresReview: false, reviewerRole: null },
-        admin: { requiresReview: false, reviewerRole: null },
-        telegram: { requiresReview: false, reviewerRole: null },
-      });
-      toast.info('Applied "100% Kitchen Direct" automation preset');
-    } else if (preset === 'strict') {
-      setChannelsState({
-        waiter: { requiresReview: true, reviewerRole: 'waiter' },
-        web: { requiresReview: true, reviewerRole: 'waiter' },
-        admin: { requiresReview: true, reviewerRole: 'support' },
-        telegram: { requiresReview: true, reviewerRole: 'support' },
-      });
-      toast.info('Applied "Strict Manual Verification" preset');
-    }
-  };
+const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
+  if (preset === 'standard') {
+    setChannelsState({
+      waiter: { requiresReview: false, reviewerRole: null },
+      web: { requiresReview: true, reviewerRole: 'waiter' },
+      qr: { requiresReview: true, reviewerRole: 'waiter' },
+      admin: { requiresReview: true, reviewerRole: 'support' },
+      telegram: { requiresReview: true, reviewerRole: 'support' },
+    });
+    toast.info('Applied "Standard Balanced" flow preset');
+  } else if (preset === 'automated') {
+    setChannelsState({
+      waiter: { requiresReview: false, reviewerRole: null },
+      web: { requiresReview: false, reviewerRole: null },
+      qr: { requiresReview: false, reviewerRole: null },
+      admin: { requiresReview: false, reviewerRole: null },
+      telegram: { requiresReview: false, reviewerRole: null },
+    });
+    toast.info('Applied "100% Kitchen Direct" automation preset');
+  } else if (preset === 'strict') {
+    setChannelsState({
+      waiter: { requiresReview: true, reviewerRole: 'waiter' },
+      web: { requiresReview: true, reviewerRole: 'waiter' },
+      qr: { requiresReview: true, reviewerRole: 'waiter' },
+      admin: { requiresReview: true, reviewerRole: 'support' },
+      telegram: { requiresReview: true, reviewerRole: 'support' },
+    });
+    toast.info('Applied "Strict Manual Verification" preset');
+  }
+};
 
   // Validation
   const validationError = useMemo(() => {
