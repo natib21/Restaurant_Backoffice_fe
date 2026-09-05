@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import type { AxiosError } from 'axios';
+import axios, { type AxiosError } from 'axios';
 
 /* ======================================================
    Types
@@ -794,4 +794,52 @@ export const useMenuPublicationsQuery = (branchId?: string) => {
     enabled: !!branchId,
   });
 };
+
+/* ======================================================
+   PDF Render Endpoint & Hooks (POST /api/v1/menu/render-pdf)
+====================================================== */
+
+/**
+ * Resolves the full URL for the PDF render endpoint.
+ * Fallback targets local backend running at http://localhost:8000/api
+ */
+export function getRenderPdfEndpoint(): string {
+  const baseUrl = 'http://localhost:8000/api';
+
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+  if (cleanBase.endsWith('/api')) {
+    return `${cleanBase}/v1/menu/render-pdf`;
+  }
+  if (cleanBase.endsWith('/api/v1')) {
+    return `${cleanBase}/menu/render-pdf`;
+  }
+  return `${cleanBase}/api/v1/menu/render-pdf`;
+}
+
+/**
+ * API call to render menu PDF via backend Puppeteer service.
+ * Endpoint: POST /api/v1/menu/render-pdf
+ * Response: PDF binary Blob
+ */
+export const renderMenuPdf = async (payload: any): Promise<Blob> => {
+  const { data } = await api.post('/v1/menu/render-pdf', payload, {
+    responseType: 'blob',
+    headers: {
+      Accept: 'application/pdf',
+      'Content-Type': 'application/json',
+    },
+    timeout: 45000,
+  });
+  return data;
+};
+
+/**
+ * React Query mutation hook for generating menu PDFs from the backend
+ */
+export const useRenderMenuPdfMutation = () => {
+  return useMutation<Blob, AxiosError<any>, any>({
+    mutationFn: renderMenuPdf,
+  });
+};
+
 
