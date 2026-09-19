@@ -40,8 +40,10 @@ import {
   useMerchantRolesQuery,
 } from '../../../api/Queries/merchantQueries';
 import { useBranchesQuery } from '@/api/Queries/branchQueries';
+import { useAssignUserBranchesMutation } from '@/api/Queries/userBranchQueries';
 import { staffFormSchema, type StaffFormValues } from '../lib/StaffSchemas';
 import { useTranslation } from '@/locales/i18n';
+import { Badge } from '@/components/ui/badge';
 
 type StaffInviteFormProps = {
   branches?: { _id: string; name: string }[];
@@ -63,17 +65,20 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
   const { t } = useTranslation('team');
   const { t: tCommon } = useTranslation('common');
   const [showPassword, setShowPassword] = useState(false);
+  const [additionalBranchIds, setAdditionalBranchIds] = useState<string[]>([]);
   const isEditMode = !!initialData?._id;
 
   const { data: roles = [], isLoading: rolesLoading } = useMerchantRolesQuery();
   const { data: branches = [] } = useBranchesQuery();
   const createMutation = useCreateStaffMemberMutation();
   const updateMutation = useUpdateStaffMemberMutation();
+  const assignMutation = useAssignUserBranchesMutation();
 
   const isMutating =
     externalLoading ||
     createMutation.isPending ||
     updateMutation.isPending ||
+    assignMutation.isPending ||
     rolesLoading;
 
   const form = useForm<StaffFormValues>({
@@ -90,8 +95,29 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
     },
   });
 
+  const selectedPrimaryBranch = form.watch('branch');
+
   useEffect(() => {
     if (initialData) {
+      let initialBranchId = '';
+      let initialAdditionalIds: string[] = [];
+
+      if (Array.isArray(initialData.branch)) {
+        if (initialData.branch.length > 0) {
+          initialBranchId = initialData.branch[0]?._id || initialData.branch[0]?.id || initialData.branch[0] || '';
+          initialAdditionalIds = initialData.branch
+            .slice(1)
+            .map((b: any) => b?._id || b?.id || b)
+            .filter(Boolean);
+        }
+      } else if (typeof initialData.branch === 'object' && initialData.branch?._id) {
+        initialBranchId = initialData.branch._id;
+      } else if (typeof initialData.branch === 'string') {
+        initialBranchId = initialData.branch;
+      }
+
+      setAdditionalBranchIds(initialAdditionalIds);
+
       form.reset({
         firstName: initialData.firstName || '',
         lastName: initialData.lastName || '',
@@ -99,8 +125,8 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
         phone: initialData.phone || '',
         password: '',
         passwordConfirm: '',
-        branch: initialData.branch || '',
-        role: initialData.role || '',
+        branch: initialBranchId,
+        role: typeof initialData.role === 'object' ? initialData.role?._id : initialData.role || '',
       });
     }
   }, [initialData, form]);
@@ -119,13 +145,27 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
           }
         : values;
 
+      let userId = initialData?._id;
       if (isEditMode && initialData?._id) {
         await updateMutation.mutateAsync({
           id: initialData._id,
           ...dataToSend,
         } as any);
       } else {
-        await createMutation.mutateAsync(dataToSend);
+        const createdUser: any = await createMutation.mutateAsync(dataToSend);
+        userId = createdUser?._id || createdUser?.id || createdUser?.user?._id;
+      }
+
+      // If additional branches were selected, assign them via branch-user assignment endpoint
+      if (userId && additionalBranchIds.length > 0) {
+        try {
+          await assignMutation.mutateAsync({
+            userId,
+            branchIds: [values.branch, ...additionalBranchIds],
+          });
+        } catch (assignError) {
+          console.error('Failed to assign branch list to user:', assignError);
+        }
       }
 
       toast.success(isEditMode ? 'Staff updated' : 'Invitation sent');
@@ -301,6 +341,54 @@ const StaffInviteForm: React.FC<StaffInviteFormProps> = ({
                 )}
               />
             </div>
+
+            {/* Additional Branches Selection */}
+            {branches.length > 1 && (
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <FormLabel className="label-style flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    Additional Branch Access
+                  </FormLabel>
+                  <span className="text-[11px] text-muted-foreground">
+                    Optional multi-branch access
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {branches
+                    .filter((b) => b._id !== selectedPrimaryBranch)
+                    .map((b) => {
+                      const isSelected = additionalBranchIds.includes(b._id);
+                      return (
+                        <button
+                          key={b._id}
+                          type="button"
+                          onClick={() => {
+                            setAdditionalBranchIds((prev) =>
+                              isSelected
+                                ? prev.filter((id) => id !== b._id)
+                                : [...prev, b._id]
+                            );
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-primary/10 text-primary border-primary/40 shadow-xs'
+                              : 'bg-background hover:bg-muted text-muted-foreground border-border/70'
+                          }`}
+                        >
+                          <Building2 className="h-3 w-3" />
+                          <span>{b.name}</span>
+                          {(b as any).shortCode && (
+                            <span className="text-[10px] font-mono opacity-70">
+                              ({(b as any).shortCode})
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </section>
 
           <Separator className="opacity-50" />

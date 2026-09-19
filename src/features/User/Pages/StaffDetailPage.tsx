@@ -15,6 +15,7 @@ import {
   User,
   ShoppingBag,
   MapPin,
+  Building2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -43,16 +44,19 @@ import {
 import RightSideModal from '@/components/ui/RightSideModal';
 
 import { useMerchantStaffMemberQuery } from '../../../api/Queries/merchantQueries';
+import { useUserBranchesQuery } from '../../../api/Queries/branchQueries';
 import { useOrdersQuery } from '../../../api/Queries/orderQuery';
 import { toast } from 'sonner';
 
 import StaffForm from '../Components/StaffInviteForm'; // ← your form (create + edit)
+import { ManageUserBranchesModal } from '../Components/ManageUserBranchesModal';
 
 const StaffDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [orderDetailOpen, setOrderDetailOpen] = useState(false);
@@ -62,6 +66,8 @@ const StaffDetailPage: React.FC = () => {
     isLoading: staffLoading,
     error: staffError,
   } = useMerchantStaffMemberQuery(id!);
+
+  const { data: userBranchesData } = useUserBranchesQuery(id);
   const { data: ordersData, isLoading: ordersLoading } = useOrdersQuery({
     placedBy: id,
   });
@@ -170,6 +176,10 @@ const StaffDetailPage: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <Button variant="outline" onClick={() => setBranchModalOpen(true)}>
+                <Building2 className="mr-2 h-4 w-4 text-primary" />
+                Manage Branches
+              </Button>
               <Button variant="outline" onClick={() => setEditModalOpen(true)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit Profile
@@ -335,23 +345,68 @@ const StaffDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {(staff.branch as any)?.name && (
-                    <>
-                      <div className="pt-2">
-                        <div className="flex items-start gap-3">
-                          <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Branch
-                            </p>
-                            <p className="mt-0.5 font-medium">
-                              {(staff.branch as any).name}
-                            </p>
-                          </div>
-                        </div>
+                  {/* Branches Section */}
+                  <div className="pt-3 border-t border-border/60">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5 text-primary" />
+                        <span>Assigned Branches</span>
                       </div>
-                    </>
-                  )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setBranchModalOpen(true)}
+                        className="h-7 px-2 text-xs text-primary hover:bg-primary/10 rounded-lg"
+                      >
+                        Manage
+                      </Button>
+                    </div>
+
+                    {(() => {
+                      const branches: any[] = userBranchesData?.branches?.length
+                        ? userBranchesData.branches
+                        : Array.isArray(staff.branch)
+                        ? staff.branch
+                        : (staff.branch as any)?.name
+                        ? [staff.branch]
+                        : [];
+
+                      if (branches.length === 0) {
+                        return (
+                          <p className="text-xs text-muted-foreground italic">
+                            No branches assigned
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-1.5">
+                          {branches.map((b: any, index: number) => (
+                            <div
+                              key={b._id || b.id || index}
+                              className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/40 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-medium text-foreground truncate">
+                                  {b.name}
+                                </span>
+                                {b.isMain && (
+                                  <Badge variant="outline" className="text-[9px] py-0 px-1 bg-primary/10 text-primary border-primary/20">
+                                    Main
+                                  </Badge>
+                                )}
+                              </div>
+                              {b.branchCode && (
+                                <span className="font-mono text-[10px] text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/50 shrink-0">
+                                  {b.branchCode}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -439,6 +494,13 @@ const StaffDetailPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Manage User Branches Modal */}
+      <ManageUserBranchesModal
+        open={branchModalOpen}
+        onOpenChange={setBranchModalOpen}
+        user={staff}
+      />
     </div>
   );
 };

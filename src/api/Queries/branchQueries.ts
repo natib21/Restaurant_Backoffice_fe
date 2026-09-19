@@ -394,3 +394,216 @@ export const useBranchStaffQuery = (branchId?: string) => {
   });
 };
 
+/* ======================================================
+   User-Branch Assignment Types, APIs & Hooks
+====================================================== */
+
+export interface AssignedBranch {
+  _id: string;
+  id?: string;
+  name: string;
+  branchCode?: string;
+  shortCode?: string;
+  isMain?: boolean;
+  isActive?: boolean;
+  location?: {
+    type?: string;
+    coordinates?: [number, number];
+    city?: string;
+    formattedAddress?: string;
+  };
+}
+
+export interface UserBranchesData {
+  user: {
+    _id: string;
+    firstName: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  };
+  branches: AssignedBranch[];
+  totalBranches: number;
+}
+
+export interface AssignBranchesPayload {
+  userId: string;
+  branchIds?: string[];
+  branchId?: string;
+}
+
+export interface RemoveBranchPayload {
+  userId: string;
+  branchId: string;
+}
+
+export interface BranchAssignmentResponse {
+  status: string;
+  data: {
+    user: {
+      _id: string;
+      firstName: string;
+      lastName?: string;
+      branch: AssignedBranch[];
+      refreshHint?: boolean;
+      message?: string;
+    };
+  };
+}
+
+export const userBranchKeys = {
+  all: ['userBranches'] as const,
+  user: (userId: string) => [...userBranchKeys.all, userId] as const,
+};
+
+/**
+ * 3. Get User's Branches
+ * GET /api/v1/users/:userId/branches
+ */
+export const fetchUserBranches = async (userId: string): Promise<UserBranchesData> => {
+  const { data } = await api.get(`/v1/users/${userId}/branches`);
+  const payload = data?.data || data;
+
+  if (payload.branches) {
+    return {
+      user: payload.user || { _id: userId, firstName: '' },
+      branches: payload.branches,
+      totalBranches: payload.totalBranches ?? payload.branches.length,
+    };
+  }
+
+  const branches = Array.isArray(payload.user?.branch)
+    ? payload.user.branch
+    : Array.isArray(payload.branch)
+    ? payload.branch
+    : [];
+
+  return {
+    user: payload.user || { _id: userId, firstName: '' },
+    branches,
+    totalBranches: branches.length,
+  };
+};
+
+/**
+ * 1. Assign Branches to User
+ * POST /api/v1/users/:userId/branches
+ * Payload: { branchIds: string[] } or { branchId: string }
+ */
+export const assignBranchesToUser = async ({
+  userId,
+  branchIds,
+  branchId,
+}: AssignBranchesPayload): Promise<BranchAssignmentResponse['data']> => {
+  const body = branchIds && branchIds.length > 0 ? { branchIds } : { branchId };
+  const { data } = await api.post(`/v1/users/${userId}/branches`, body);
+  return data?.data || data;
+};
+
+/**
+ * 2. Remove Branch from User
+ * DELETE /api/v1/users/:userId/branches/:branchId
+ */
+export const removeBranchFromUser = async ({
+  userId,
+  branchId,
+}: RemoveBranchPayload): Promise<BranchAssignmentResponse['data']> => {
+  const { data } = await api.delete(`/v1/users/${userId}/branches/${branchId}`);
+  return data?.data || data;
+};
+
+/**
+ * Hook to query a user's assigned branches
+ */
+export const useUserBranchesQuery = (userId?: string) => {
+  return useQuery<UserBranchesData, AxiosError<any>>({
+    queryKey: userBranchKeys.user(userId || ''),
+    queryFn: () => fetchUserBranches(userId!),
+    enabled: !!userId,
+    staleTime: 60 * 1000,
+  });
+};
+
+/**
+ * Hook to assign branch(es) to a user
+ */
+export const useAssignUserBranchesMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<BranchAssignmentResponse['data'], AxiosError<any>, AssignBranchesPayload>({
+    mutationFn: assignBranchesToUser,
+    onSuccess: (data, variables) => {
+      const assignedUser = data?.user;
+
+      queryClient.invalidateQueries({
+        queryKey: userBranchKeys.user(variables.userId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ['merchant', 'staff'],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ['branchStaff'],
+      });
+
+      const currentUser: any = queryClient.getQueryData(['user']);
+      const isCurrentUser = currentUser?._id === variables.userId || currentUser?.id === variables.userId;
+
+      if (assignedUser?.refreshHint || isCurrentUser) {
+        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.refetchQueries({ queryKey: ['user'] });
+      }
+
+      const msg = assignedUser?.message || 'Branch assignment updated successfully';
+      toast.success(msg);
+    },
+    onError: (error) => {
+      const msg = error.response?.data?.message || 'Failed to assign branches to user';
+      toast.error(msg);
+    },
+  });
+};
+
+/**
+ * Hook to remove a branch from a user
+ */
+export const useRemoveUserBranchMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<BranchAssignmentResponse['data'], AxiosError<any>, RemoveBranchPayload>({
+    mutationFn: removeBranchFromUser,
+    onSuccess: (data, variables) => {
+      const remainingUser = data?.user;
+
+      queryClient.invalidateQueries({
+        queryKey: userBranchKeys.user(variables.userId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ['merchant', 'staff'],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ['branchStaff'],
+      });
+
+      const currentUser: any = queryClient.getQueryData(['user']);
+      const isCurrentUser = currentUser?._id === variables.userId || currentUser?.id === variables.userId;
+
+      if (remainingUser?.refreshHint || isCurrentUser) {
+        queryClient.invalidateQueries({ queryKey: ['user'] });
+        queryClient.refetchQueries({ queryKey: ['user'] });
+      }
+
+      const msg = remainingUser?.message || 'Branch removed successfully';
+      toast.success(msg);
+    },
+    onError: (error) => {
+      const msg = error.response?.data?.message || 'Failed to remove branch from user';
+      toast.error(msg);
+    },
+  });
+};
+
+

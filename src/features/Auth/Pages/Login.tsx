@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LoginForm } from '../Components/LoginForm';
 import { useLoginMutation } from '../../../api/Queries/authQueries';
-import { UtensilsCrossed, Sparkles, TrendingUp, Gift, ArrowRight } from 'lucide-react';
+import { UtensilsCrossed, Sparkles, TrendingUp, Gift, ArrowRight, AlertCircle } from 'lucide-react';
 
 const CAROUSEL_SLIDES = [
   {
@@ -30,6 +30,8 @@ export default function LoginPage() {
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
   const [currentSlide, setCurrentSlide] = useState(0);
+  const searchParams = new URLSearchParams(location.search);
+  const sessionMessage = searchParams.get('message');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -181,6 +183,13 @@ export default function LoginPage() {
               Enter your credentials to access your restaurant network
             </p>
           </header>
+
+          {sessionMessage && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2.5 shadow-sm">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <span className="leading-relaxed font-medium">{sessionMessage}</span>
+            </div>
+          )}
 
           <LoginForm
             onSubmit={handleSubmit}

@@ -147,10 +147,31 @@ const Header: React.FC = () => {
     ? `${timeLeft.days}d`
     : `${timeLeft.hours}h`;
 
-  const currentBranch = useMemo(
-    () => branches.find((b) => b._id === currentBranchId),
-    [branches, currentBranchId]
-  );
+  // Branch calculation: prioritizes user.branch from /api/v1/users/me
+  const userBranches = useMemo(() => {
+    if (user?.branch && Array.isArray(user.branch) && user.branch.length > 0) {
+      return user.branch;
+    }
+    return branches;
+  }, [user?.branch, branches]);
+
+  const isSingleBranch = userBranches.length === 1;
+  const singleBranch = isSingleBranch ? userBranches[0] : null;
+  const singleBranchId = singleBranch ? (singleBranch._id || (singleBranch as any).id) : null;
+
+  // Auto-enforce single branch selection
+  useEffect(() => {
+    if (isSingleBranch && singleBranchId) {
+      if (currentBranchId !== singleBranchId) {
+        dispatch(setCurrentBranch(singleBranchId));
+      }
+    }
+  }, [isSingleBranch, singleBranchId, currentBranchId, dispatch]);
+
+  const currentBranch = useMemo(() => {
+    if (isSingleBranch && singleBranch) return singleBranch;
+    return userBranches.find((b: any) => (b._id || b.id) === currentBranchId) || null;
+  }, [userBranches, currentBranchId, isSingleBranch, singleBranch]);
 
   const languages: { code: Language; label: string }[] = [
     { code: 'en', label: 'English' },
@@ -163,6 +184,10 @@ const Header: React.FC = () => {
   };
 
   const handleBranchChange = (value: string) => {
+    if (isSingleBranch) {
+      if (singleBranchId) dispatch(setCurrentBranch(singleBranchId));
+      return;
+    }
     dispatch(setCurrentBranch(value === 'all' ? null : value));
   };
 
@@ -226,47 +251,101 @@ const Header: React.FC = () => {
               </span>
             </div>
 
-            {/* MOBILE BRANCH SELECTOR */}
+            {/* MOBILE BRANCH DISPLAY / SELECTOR */}
             <div className="sm:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 px-2.5 rounded-md border-border bg-muted/40 hover:bg-muted/70 text-xs font-medium shadow-none"
-                  >
-                    <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="text-xs max-w-[80px] truncate">
-                      {currentBranch ? currentBranch.name : 'All Locations'}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[200px] rounded-lg">
-                  <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Switch Branch
-                  </DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={currentBranchId || 'all'}
-                    onValueChange={handleBranchChange}
-                  >
-                    <DropdownMenuRadioItem value="all" className="text-xs">
-                      All Locations
-                    </DropdownMenuRadioItem>
-                    {branches.map((b) => (
-                      <DropdownMenuRadioItem key={b._id} value={b._id} className="text-xs">
-                        {b.name}
+              {isSingleBranch ? (
+                <div
+                  className="h-7 inline-flex items-center gap-1.5 px-2 rounded-md border border-border/70 bg-muted/30 text-xs font-medium text-foreground cursor-default select-none shadow-none"
+                  title={`Assigned Branch: ${singleBranch?.name || ''}`}
+                >
+                  <MapPin className="h-3 w-3 text-primary shrink-0" />
+                  <span className="text-xs max-w-[95px] truncate font-medium">
+                    {singleBranch?.name || 'Branch'}
+                  </span>
+                </div>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 px-2.5 rounded-md border-border bg-muted/40 hover:bg-muted/70 text-xs font-medium shadow-none"
+                    >
+                      <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-xs max-w-[80px] truncate">
+                        {currentBranch ? currentBranch.name : 'All Locations'}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[200px] rounded-lg">
+                    <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Switch Branch
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={currentBranchId || 'all'}
+                      onValueChange={handleBranchChange}
+                    >
+                      <DropdownMenuRadioItem value="all" className="text-xs">
+                        All Locations
                       </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      {userBranches.map((b: any) => (
+                        <DropdownMenuRadioItem
+                          key={b._id || b.id}
+                          value={b._id || b.id}
+                          className="text-xs"
+                        >
+                          {b.name}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
 
           {/* CENTER */}
           <div className="flex-1 max-w-sm lg:max-w-md hidden sm:flex items-center justify-center gap-3">
-            {branchesLoading ? (
+            {branchesLoading && !user ? (
               <Skeleton className="h-9 w-full rounded-lg" />
+            ) : isSingleBranch ? (
+              <div
+                className="flex items-center w-full bg-muted/30 border border-border/80 rounded-lg px-2.5 py-1 select-none cursor-default"
+                title={`Assigned Branch: ${singleBranch?.name || ''}`}
+              >
+                <MapPin className="h-3.5 w-3.5 text-primary shrink-0 ml-0.5 mr-1.5" />
+                <div className="flex items-center justify-between grow min-w-0 pr-1">
+                  <span className="text-xs font-semibold text-foreground truncate">
+                    {singleBranch?.name}
+                  </span>
+                  {(singleBranch as any)?.branchCode && (
+                    <span className="text-[10px] font-mono font-medium text-muted-foreground bg-background/80 border border-border/60 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                      {(singleBranch as any).branchCode}
+                    </span>
+                  )}
+                </div>
+
+                <div className="h-3.5 w-[1px] bg-border/80 shrink-0 mx-2" />
+
+                <div className="flex items-center gap-1.5 px-1 shrink-0">
+                  <span
+                    className={`h-2 w-2 rounded-full shrink-0 ${
+                      isConnected
+                        ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
+                        : 'bg-zinc-400 dark:bg-zinc-500'
+                    }`}
+                  />
+                  <span
+                    className={`text-[11px] font-medium tracking-wide ${
+                      isConnected
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-muted-foreground'
+                    }`}
+                  >
+                    {isConnected ? 'Live' : 'Offline'}
+                  </span>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center w-full bg-muted/40 hover:bg-muted/60 border border-border/80 rounded-lg px-2.5 py-0.5 transition-colors">
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-0.5 mr-1" />
@@ -282,8 +361,8 @@ const Header: React.FC = () => {
                       All Locations
                     </SelectItem>
                     <DropdownMenuSeparator />
-                    {branches.map((b) => (
-                      <SelectItem key={b._id} value={b._id} className="text-xs">
+                    {userBranches.map((b: any) => (
+                      <SelectItem key={b._id || b.id} value={b._id || b.id} className="text-xs">
                         <div className="flex flex-col py-0.5">
                           <span className="font-medium text-xs text-foreground">{b.name}</span>
                           {b.location?.city && (

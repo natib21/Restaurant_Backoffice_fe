@@ -57,6 +57,7 @@ import {
   type StaffUser,
 } from '../../../api/Queries/merchantQueries';
 import StaffForm from '../Components/StaffInviteForm';
+import { ManageUserBranchesModal } from '../Components/ManageUserBranchesModal';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -107,6 +108,8 @@ const StaffManagementPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [branchModalOpen, setBranchModalOpen] = useState(false);
+  const [selectedMemberForBranches, setSelectedMemberForBranches] = useState<any>(null);
 
   // Helper functions
   const isOnLeave = (member: any) => {
@@ -126,8 +129,22 @@ const StaffManagementPage = () => {
     return member.role.name || 'Staff Member';
   };
 
+  const getMemberBranches = (member: StaffUser): Array<{ _id: string; name: string; branchCode?: string; isMain?: boolean }> => {
+    if (!member.branch) return [];
+    if (Array.isArray(member.branch)) return member.branch;
+    if (typeof member.branch === 'object') return [member.branch as any];
+    return [];
+  };
+
   const getBranchName = (member: StaffUser): string => {
     if (!member.branch) return '—';
+    if (Array.isArray(member.branch)) {
+      if (member.branch.length === 0) return '—';
+      if (member.branch.length === 1) {
+        return member.branch[0]?.name || 'Assigned';
+      }
+      return `${member.branch[0]?.name || 'Branch'} (+${member.branch.length - 1})`;
+    }
     if (typeof member.branch === 'string') return 'Assigned';
     return member.branch.name || '—';
   };
@@ -221,21 +238,40 @@ const StaffManagementPage = () => {
         id: 'role',
         header: 'Role & Permissions',
         sortable: true,
-        cell: (member) => (
-          <div className="space-y-0.5">
-            <Badge
-              variant="outline"
-              className="text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 capitalize"
-            >
-              <ShieldCheck className="h-3 w-3 mr-1 text-primary" />
-              {getRoleName(member)}
-            </Badge>
-            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-              <Building2 className="h-2.5 w-2.5" />
-              {getBranchName(member)}
+        cell: (member) => {
+          const memberBranches = getMemberBranches(member);
+          return (
+            <div className="space-y-1">
+              <Badge
+                variant="outline"
+                className="text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 capitalize"
+              >
+                <ShieldCheck className="h-3 w-3 mr-1 text-primary" />
+                {getRoleName(member)}
+              </Badge>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedMemberForBranches(member);
+                  setBranchModalOpen(true);
+                }}
+                className="text-[10px] text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary flex items-center gap-1.5 transition-colors group cursor-pointer"
+                title="Click to manage branch assignments"
+              >
+                <Building2 className="h-3 w-3 group-hover:text-primary transition-colors shrink-0" />
+                <span className="truncate max-w-[130px] group-hover:underline">
+                  {getBranchName(member)}
+                </span>
+                {memberBranches.length > 1 && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-primary/10 text-primary shrink-0">
+                    {memberBranches.length}
+                  </span>
+                )}
+              </button>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         id: 'contact',
@@ -367,6 +403,15 @@ const StaffManagementPage = () => {
                   className="cursor-pointer text-xs"
                 >
                   <Eye className="mr-2 h-3.5 w-3.5 text-slate-500" /> View Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectedMemberForBranches(member);
+                    setBranchModalOpen(true);
+                  }}
+                  className="cursor-pointer text-xs"
+                >
+                  <Building2 className="mr-2 h-3.5 w-3.5 text-primary" /> Manage Branches
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -1203,6 +1248,13 @@ const StaffManagementPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Branch Assignment Modal */}
+      <ManageUserBranchesModal
+        open={branchModalOpen}
+        onOpenChange={setBranchModalOpen}
+        user={selectedMemberForBranches}
+      />
     </div>
   );
 };

@@ -52,6 +52,7 @@ export const ReportsPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<ReportType>(getActiveTabFromUrl());
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportInitialFormat, setExportInitialFormat] = useState<'pdf' | 'csv'>('pdf');
 
   // Default query parameters: last 30 days
   const [queryParams, setQueryParams] = useState<ReportQueryParams>(() => {
@@ -108,7 +109,10 @@ export const ReportsPage: React.FC = () => {
         params={queryParams}
         onChangeParams={handleUpdateParams}
         onRefresh={() => setQueryParams((prev) => ({ ...prev }))}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenExportModal={(fmt) => {
+          setExportInitialFormat(fmt || 'pdf');
+          setIsExportModalOpen(true);
+        }}
       />
 
       {/* Navigation Tabs */}
@@ -168,6 +172,7 @@ export const ReportsPage: React.FC = () => {
         onClose={() => setIsExportModalOpen(false)}
         reportType={activeTab}
         params={queryParams}
+        defaultFormat={exportInitialFormat}
       />
     </div>
   );

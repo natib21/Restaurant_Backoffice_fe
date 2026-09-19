@@ -1,5 +1,5 @@
 // src/features/Table/pages/PrintMenuPage.tsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useForm } from 'react-hook-form';
@@ -79,7 +79,7 @@ import {
   MenuTemplateRenderer,
   AVAILABLE_TEMPLATES,
 } from '../Components/PrintMenu/templates';
-import { downloadMenuAsPdf, triggerCleanMenuPrint } from '../Components/PrintMenu/utils/printPdfUtils';
+import { triggerCleanMenuPrint } from '../Components/PrintMenu/utils/printPdfUtils';
 import { getTableScanUrl } from '../Components/PrintMenu/utils/templateUtils';
 import {
   type PrintMenuSettings,
@@ -92,132 +92,17 @@ import {
   type SectionDividerStyle,
   type SectionSpacingDensity,
   type BrandingSlotPosition,
+  printMenuSettingsSchema,
   DEFAULT_PRINT_SETTINGS,
-  
+  DEFAULT_SECTION_CONFIG,
 } from '../Components/PrintMenu/types';
-
-// Local copy of DEFAULT_SECTION_CONFIG to avoid import-cycle runtime issue
-const DEFAULT_SECTION_CONFIG = {
-  layout: 'list-with-photos',
-  backgroundTint: 'none',
-  dividerStyle: 'line',
-  density: 'normal',
-  showPhotos: true,
-};
-// Inline MENU_THEME_PRESETS to avoid runtime export resolution issues
-const MENU_THEME_PRESETS = [
-  {
-    id: 'modern-bistro',
-    name: 'Modern Bistro',
-    category: 'Contemporary',
-    description:
-      'Crisp layout, deep indigo & bright blue accents with modern sans typography.',
-    previewColors: { primary: '#091426', accent: '#2563eb', paper: '#ffffff' },
-    settings: {
-      theme: 'modern',
-      paperColor: 'white',
-      fontFamily: 'sans',
-      fontSize: 'medium',
-      primaryColor: '#091426',
-      secondaryColor: '#64748b',
-      accentColor: '#2563eb',
-      borderStyle: 'none',
-      defaultSectionLayout: 'list-with-photos',
-      density: 'comfortable',
-    },
-  },
-  {
-    id: 'habesha-heritage',
-    name: 'Habesha Heritage',
-    category: 'Cultural',
-    description:
-      'Traditional Ethiopian warm tones, rich crimson, gold borders & Ge’ez styling.',
-    previewColors: { primary: '#451a03', accent: '#b45309', paper: '#faf7f2' },
-    settings: {
-      theme: 'ethiopian',
-      paperColor: 'warm-white',
-      fontFamily: 'serif',
-      fontSize: 'medium',
-      primaryColor: '#451a03',
-      secondaryColor: '#78350f',
-      accentColor: '#b45309',
-      borderStyle: 'ethiopian',
-      showAmharic: true,
-      defaultSectionLayout: 'grid-2col',
-      density: 'comfortable',
-    },
-  },
-  {
-    id: 'luxury-noir',
-    name: 'Luxury Gold & Noir',
-    category: 'Fine Dining',
-    description:
-      'Refined dark slate with metallic champagne gold and luxury serif typography.',
-    previewColors: { primary: '#f8fafc', accent: '#eab308', paper: '#0f172a' },
-    settings: {
-      theme: 'luxury',
-      paperColor: 'dark-slate',
-      fontFamily: 'cinzel',
-      fontSize: 'medium',
-      primaryColor: '#f8fafc',
-      secondaryColor: '#94a3b8',
-      accentColor: '#eab308',
-      borderStyle: 'luxury-corner',
-      defaultSectionLayout: 'compact-price-list',
-      density: 'spacious',
-    },
-  },
-  {
-    id: 'artisan-cafe',
-    name: 'Artisan Cafe & Bakery',
-    category: 'Casual',
-    description:
-      'Warm cream paper, espresso brown notes, and generous dish photo cards.',
-    previewColors: { primary: '#292524', accent: '#d97706', paper: '#fdfaf0' },
-    settings: {
-      theme: 'coffee',
-      paperColor: 'cream',
-      fontFamily: 'serif',
-      fontSize: 'medium',
-      primaryColor: '#292524',
-      secondaryColor: '#78716c',
-      accentColor: '#d97706',
-      borderStyle: 'coffee-shop',
-      showImages: true,
-      defaultSectionLayout: 'list-with-photos',
-      density: 'comfortable',
-    },
-  },
-  {
-    id: 'minimal-editorial',
-    name: 'Minimalist Editorial',
-    category: 'Modern',
-    description:
-      'Monochrome precision with stark typography, dotted leaders, and zero distractions.',
-    previewColors: { primary: '#171717', accent: '#525252', paper: '#ffffff' },
-    settings: {
-      theme: 'minimal',
-      paperColor: 'white',
-      fontFamily: 'mono',
-      fontSize: 'medium',
-      primaryColor: '#171717',
-      secondaryColor: '#737373',
-      accentColor: '#000000',
-      borderStyle: 'minimal',
-      defaultSectionLayout: 'compact-price-list',
-      density: 'compact',
-    },
-  },
-];
+import { MENU_THEME_PRESETS, type ThemePreset } from '../Components/PrintMenu/themes';
 import { getCategoryName } from '@/features/Menu/lib/categoryUtils';
-import { exportMenuPdf } from '../Components/PrintMenu/utils/exportMenuPdf';
-// Dynamic import to avoid static import-time resolution issues
-// Resolve either a named export `PdfPreviewModal` or a default export; fall back to a noop component
-const PdfPreviewModal = React.lazy(() =>
-  import('../Components/PrintMenu/PdfPreviewModal').then((m) => ({
-    default: m?.PdfPreviewModal ?? m?.default ?? (() => null),
-  }))
-);
+import {
+  exportMenuPdf,
+  RenderPdfError,
+} from '../Components/PrintMenu/utils/exportMenuPdf';
+import { PdfPreviewModal } from '../Components/PrintMenu/PdfPreviewModal';
 
 const STORAGE_KEY = 'rms_saved_physical_menu_design';
 
@@ -251,12 +136,18 @@ export const PrintMenuPage: React.FC = () => {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [activeCategoryTab, setActiveCategoryTab] = useState<Record<string, 'style' | 'items'>>({});
 
+  // Responsive desktop panel toggles (expand/collapse sidebars to give full canvas space on big screens)
+  const [showLeftSidebar, setShowLeftSidebar] = useState<boolean>(true);
+  const [showRightSidebar, setShowRightSidebar] = useState<boolean>(true);
+
   // Responsive mobile/tablet tabs & PDF preview modal state
   const [activeMobileTab, setActiveMobileTab] = useState<'templates' | 'preview' | 'customize'>('preview');
   const [pdfModalOpen, setPdfModalOpen] = useState<boolean>(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = useState<string>('menu.pdf');
   const [previewSource, setPreviewSource] = useState<'server' | 'client'>('server');
+
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-set sensible initial zoom based on screen width
   useEffect(() => {
@@ -283,11 +174,46 @@ export const PrintMenuPage: React.FC = () => {
   }, []);
 
   const form = useForm<PrintMenuSettings>({
+    resolver: zodResolver(printMenuSettingsSchema) as any,
     defaultValues: initialSettings,
   });
 
   // Watch entire form state to drive preview & PDF export seamlessly
   const settings = form.watch();
+
+  // Paper Dimensions calculation for preview viewport
+  const isLandscape = settings.orientation === 'landscape';
+
+  const paperDimensions = useMemo(() => {
+    switch (settings.paperSize) {
+      case 'a5':
+        return isLandscape ? { width: '210mm', height: '148mm' } : { width: '148mm', height: '210mm' };
+      case 'a3':
+        return isLandscape ? { width: '420mm', height: '297mm' } : { width: '297mm', height: '420mm' };
+      case 'letter':
+        return isLandscape ? { width: '11in', height: '8.5in' } : { width: '8.5in', height: '11in' };
+      case 'a4':
+      default:
+        return isLandscape ? { width: '297mm', height: '210mm' } : { width: '210mm', height: '297mm' };
+    }
+  }, [settings.paperSize, isLandscape]);
+
+  // Derived pixel dimensions of selected paper size
+  const paperPixelDimensions = useMemo(() => {
+    const getPx = (dim: string) => {
+      if (dim.endsWith('mm')) {
+        return (parseFloat(dim) * 96) / 25.4;
+      }
+      if (dim.endsWith('in')) {
+        return parseFloat(dim) * 96;
+      }
+      return parseFloat(dim) || 794;
+    };
+    return {
+      width: Math.round(getPx(paperDimensions.width)),
+      height: Math.round(getPx(paperDimensions.height)),
+    };
+  }, [paperDimensions]);
 
   // Sync initial or updated table ID from query params or table list
   useEffect(() => {
@@ -396,7 +322,7 @@ export const PrintMenuPage: React.FC = () => {
     }
   };
 
-  // Generate High-Res PDF Export
+  // Generate PDF Export Exclusively via Backend Service (POST /v1/menu/render-pdf)
   const handleDownloadPdf = async () => {
     if (!activeTable) {
       toast.error('Please select a table to export PDF');
@@ -404,12 +330,12 @@ export const PrintMenuPage: React.FC = () => {
     }
 
     setIsGeneratingPdf(true);
-    const toastId = toast.loading('Generating high-resolution menu PDF with embedded QR code...');
+    const toastId = toast.loading('Requesting high-resolution menu PDF from backend server...');
 
     try {
       const tableScanUrl = getTableScanUrl(activeTable);
 
-      // Attempt server-side rendering first
+      // Backend API rendering ONLY
       const result = await exportMenuPdf({
         settings,
         menuItems,
@@ -423,51 +349,90 @@ export const PrintMenuPage: React.FC = () => {
       setPreviewFilename(result.filename);
       setPreviewSource('server');
       setPdfModalOpen(true);
-      toast.success(`Menu PDF generated and saved to your Downloads folder!`, { id: toastId });
+      toast.success(`Menu PDF generated by backend server and downloaded!`, { id: toastId });
     } catch (err: any) {
-      console.error('Server PDF render error:', { err, status: err?.status ?? null });
+      console.error('Backend PDF generation failed:', err);
 
-      const isTimeout = err?.status === 504;
-      toast.loading(
-        isTimeout
-          ? 'Server rendering timed out. Generating client-side vector PDF instead...'
-          : 'Server PDF endpoint unavailable. Generating client-side vector PDF...',
-        { id: toastId }
-      );
+      const status = err instanceof RenderPdfError ? err.status : 500;
+      let errorMsg = err?.message || 'Backend PDF generation failed.';
 
-      try {
-        await downloadMenuAsPdf({
-          containerId: 'printable-menu-root',
-          settings,
-          tableNumber: activeTable.tableNumber,
-          restaurantName: settings.restaurantName || merchant?.businessName,
-          onProgress: (msg) => {
-            toast.loading(msg, { id: toastId });
-          },
-        });
-        toast.success(`Table #${activeTable.tableNumber} Menu PDF downloaded to your device!`, { id: toastId });
-      } catch (fallbackErr: any) {
-        console.error('Client PDF export fallback error:', fallbackErr);
-        toast.error('Failed to download PDF: ' + (fallbackErr?.message || err?.message || 'Unknown error'), { id: toastId });
+      if (status === 504) {
+        errorMsg = 'Backend PDF generation timed out. Try reducing menu items or paper size.';
+      } else if (status === 400) {
+        errorMsg = 'Invalid menu data: ' + (err?.message || 'Check menu configuration and item fields.');
+      } else if (status === 404) {
+        errorMsg = 'Backend PDF rendering endpoint (POST /api/v1/menu/render-pdf) was not found. Please check backend server status.';
+      } else if (status === 0 || err?.code === 'NETWORK_ERROR' || err?.code === 'BACKEND_UNAVAILABLE' || err?.code === 'ECONNABORTED') {
+        errorMsg = 'Unable to reach backend PDF server. Please ensure the backend service is running.';
       }
+
+      toast.error(errorMsg, { id: toastId, duration: 6000 });
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // Auto-fit zoom to available canvas width
-  const handleFitToScreen = () => {
-    if (typeof window === 'undefined') return;
-    const isMobile = window.innerWidth < 1280;
-    const availableWidth = isMobile ? window.innerWidth - 32 : window.innerWidth - 680;
-    const pixelWidth = paperDimensions.width.endsWith('mm')
-      ? (parseFloat(paperDimensions.width) * 96) / 25.4
-      : paperDimensions.width.endsWith('in')
-      ? parseFloat(paperDimensions.width) * 96
-      : parseInt(paperDimensions.width, 10) || 794;
-    const targetZoom = Math.min(1.0, Math.max(0.35, Number((availableWidth / pixelWidth).toFixed(2))));
-    setZoomLevel(targetZoom);
-  };
+  // Auto-fit zoom to available canvas container width & height
+  const handleFitToScreen = useCallback(() => {
+    if (canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const availW = rect.width - 64; // accounting for padding
+      const availH = rect.height - 110; // accounting for padding and bottom toolbar
+      if (availW > 0 && availH > 0) {
+        const scaleW = availW / paperPixelDimensions.width;
+        const scaleH = availH / paperPixelDimensions.height;
+        const fitScale = Math.min(scaleW, scaleH);
+        // On big screens (1440p, 4K), allow scaling up to 1.6x, down to 0.35x on mobile
+        const targetZoom = Math.min(1.6, Math.max(0.35, Number(fitScale.toFixed(2))));
+        setZoomLevel(targetZoom);
+        return;
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const isMobile = window.innerWidth < 1280;
+      const leftW = showLeftSidebar ? (window.innerWidth >= 1536 ? 320 : 288) : 0;
+      const rightW = showRightSidebar ? (window.innerWidth >= 1536 ? 440 : 380) : 0;
+      const availableWidth = isMobile ? window.innerWidth - 32 : window.innerWidth - (leftW + rightW + 80);
+      const targetZoom = Math.min(1.6, Math.max(0.35, Number((availableWidth / paperPixelDimensions.width).toFixed(2))));
+      setZoomLevel(targetZoom);
+    }
+  }, [paperPixelDimensions, showLeftSidebar, showRightSidebar]);
+
+  const handleFitWidth = useCallback(() => {
+    if (canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const availW = rect.width - 64;
+      if (availW > 0) {
+        const scaleW = availW / paperPixelDimensions.width;
+        const targetZoom = Math.min(1.8, Math.max(0.35, Number(scaleW.toFixed(2))));
+        setZoomLevel(targetZoom);
+      }
+    }
+  }, [paperPixelDimensions]);
+
+  // Initial and reactive auto-fit on mount & screen resize
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleFitToScreen();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [handleFitToScreen]);
+
+  useEffect(() => {
+    let resizeTimer: any;
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        handleFitToScreen();
+      }, 150);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(resizeTimer);
+    };
+  }, [handleFitToScreen]);
 
   // ── Content Categorization & Hierarchy ───────────────────────────
   const rawCategorizedHierarchy = useMemo(() => {
@@ -636,27 +601,10 @@ export const PrintMenuPage: React.FC = () => {
     });
   };
 
-  // Paper Dimensions calculation for preview viewport
-  const isLandscape = settings.orientation === 'landscape';
-
-  const paperDimensions = useMemo(() => {
-    switch (settings.paperSize) {
-      case 'a5':
-        return isLandscape ? { width: '210mm', height: '148mm' } : { width: '148mm', height: '210mm' };
-      case 'a3':
-        return isLandscape ? { width: '420mm', height: '297mm' } : { width: '297mm', height: '420mm' };
-      case 'letter':
-        return isLandscape ? { width: '11in', height: '8.5in' } : { width: '8.5in', height: '11in' };
-      case 'a4':
-      default:
-        return isLandscape ? { width: '297mm', height: '210mm' } : { width: '210mm', height: '297mm' };
-    }
-  }, [settings.paperSize, isLandscape]);
-
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+    <div className="h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
       {/* ── Top Header Toolbar ──────────────────────────────────────── */}
-      <header className="min-h-14 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 flex-shrink-0 z-30 shadow-2xs">
+      <header className="min-h-14 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 flex-shrink-0 z-30 shadow-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <Button
             variant="ghost"
@@ -680,6 +628,30 @@ export const PrintMenuPage: React.FC = () => {
             >
               V2.5
             </Badge>
+          </div>
+
+          {/* Desktop Workspace Panel Toggles */}
+          <div className="hidden xl:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+            <Button
+              variant={showLeftSidebar ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setShowLeftSidebar((prev) => !prev)}
+              className="h-7 px-2 text-xs font-semibold gap-1 text-slate-700 dark:text-slate-300"
+              title={showLeftSidebar ? 'Collapse Templates' : 'Expand Templates'}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 text-blue-600" />
+              <span className="text-[11px]">{showLeftSidebar ? 'Hide Templates' : 'Templates'}</span>
+            </Button>
+            <Button
+              variant={showRightSidebar ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setShowRightSidebar((prev) => !prev)}
+              className="h-7 px-2 text-xs font-semibold gap-1 text-slate-700 dark:text-slate-300"
+              title={showRightSidebar ? 'Collapse Inspector' : 'Expand Inspector'}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-blue-600" />
+              <span className="text-[11px]">{showRightSidebar ? 'Hide Inspector' : 'Customize'}</span>
+            </Button>
           </div>
         </div>
 
@@ -755,7 +727,7 @@ export const PrintMenuPage: React.FC = () => {
           onClick={() => setActiveMobileTab('templates')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-bold rounded-md transition-all ${
             activeMobileTab === 'templates'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
@@ -768,7 +740,7 @@ export const PrintMenuPage: React.FC = () => {
           onClick={() => setActiveMobileTab('preview')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-bold rounded-md transition-all ${
             activeMobileTab === 'preview'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
@@ -781,7 +753,7 @@ export const PrintMenuPage: React.FC = () => {
           onClick={() => setActiveMobileTab('customize')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-bold rounded-md transition-all ${
             activeMobileTab === 'customize'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
@@ -792,10 +764,10 @@ export const PrintMenuPage: React.FC = () => {
 
       {/* ── 3-Pane Workspace Body ───────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── PANE 1: Left Sidebar - Base Template Selection (w-64) ──── */}
+        {/* ── PANE 1: Left Sidebar - Base Template Selection ──── */}
         <aside
-          className={`w-full xl:w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col h-full flex-shrink-0 overflow-y-auto ${
-            activeMobileTab === 'templates' ? 'flex' : 'hidden xl:flex'
+          className={`w-full xl:w-72 2xl:w-80 3xl:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col h-full flex-shrink-0 overflow-y-auto transition-all duration-200 ${
+            activeMobileTab === 'templates' ? 'flex' : showLeftSidebar ? 'hidden xl:flex' : 'hidden'
           }`}
         >
           <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 flex justify-between items-center">
@@ -830,12 +802,12 @@ export const PrintMenuPage: React.FC = () => {
                     <div className="h-2.5 w-1/2 bg-slate-300 dark:bg-slate-700 rounded-sm" />
                     <div className="flex gap-2">
                       <div className="flex-1 space-y-1">
-                        <div className="h-1.5 w-full bg-slate-300/80 dark:bg-slate-700 rounded-xs" />
-                        <div className="h-1.5 w-4/5 bg-slate-300/80 dark:bg-slate-700 rounded-xs" />
+                        <div className="h-1.5 w-full bg-slate-300/80 dark:bg-slate-700 rounded-sm" />
+                        <div className="h-1.5 w-4/5 bg-slate-300/80 dark:bg-slate-700 rounded-sm" />
                       </div>
                       <div className="flex-1 space-y-1">
-                        <div className="h-1.5 w-full bg-slate-300/80 dark:bg-slate-700 rounded-xs" />
-                        <div className="h-1.5 w-3/5 bg-slate-300/80 dark:bg-slate-700 rounded-xs" />
+                        <div className="h-1.5 w-full bg-slate-300/80 dark:bg-slate-700 rounded-sm" />
+                        <div className="h-1.5 w-3/5 bg-slate-300/80 dark:bg-slate-700 rounded-sm" />
                       </div>
                     </div>
                   </div>
@@ -861,14 +833,15 @@ export const PrintMenuPage: React.FC = () => {
 
         {/* ── PANE 2: Center Canvas - Live Paper Preview ─────────────── */}
         <section
-          className={`flex-1 bg-slate-200/70 dark:bg-slate-950 overflow-y-auto overflow-x-auto p-4 sm:p-8 flex-col items-center justify-start relative select-none ${
+          ref={canvasContainerRef}
+          className={`flex-1 bg-slate-200/80 dark:bg-slate-950 overflow-auto p-4 sm:p-6 md:p-8 flex relative select-none ${
             activeMobileTab === 'preview' ? 'flex' : 'hidden xl:flex'
           }`}
         >
-          {/* Zoom Controls Toolbar */}
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-full shadow-md flex items-center px-3 py-1.5 gap-2 z-20">
+          {/* Zoom Controls Toolbar Centered Over Canvas */}
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-full shadow-lg flex items-center px-3 py-1.5 gap-2 z-20">
             <button
-              onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.1).toFixed(2))))}
+              onClick={() => setZoomLevel((z) => Math.max(0.3, Number((z - 0.1).toFixed(2))))}
               className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
               title="Zoom Out"
             >
@@ -880,9 +853,9 @@ export const PrintMenuPage: React.FC = () => {
             </span>
 
             <button
-              onClick={() => setZoomLevel((z) => Math.min(1.4, Number((z + 0.1).toFixed(2))))}
+              onClick={() => setZoomLevel((z) => Math.min(2.0, Number((z + 0.1).toFixed(2))))}
               className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
-              title="Zoom In"
+              title="Zoom In (up to 200%)"
             >
               <ZoomIn className="h-4 w-4" />
             </button>
@@ -892,53 +865,71 @@ export const PrintMenuPage: React.FC = () => {
             <button
               onClick={handleFitToScreen}
               className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
-              title="Fit to Screen"
+              title="Fit entire page to screen"
             >
               Fit
             </button>
 
             <button
+              onClick={handleFitWidth}
+              className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hidden sm:inline"
+              title="Fit page width"
+            >
+              Fit Width
+            </button>
+
+            <button
               onClick={() => setZoomLevel(1.0)}
               className="px-2 py-1 text-[11px] font-semibold rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+              title="Reset to 100% 1:1 scale"
             >
               100%
             </button>
           </div>
 
-          {/* Scaled Printable Paper Root */}
+          {/* Centering Scaled Paper Wrapper */}
           <div
-            id="printable-menu-root"
-            className="shadow-xl rounded-sm border border-slate-300 dark:border-slate-700 transition-transform origin-top flex-shrink-0 bg-white"
+            className="m-auto flex-shrink-0 relative transition-all duration-150"
             style={{
-              width: paperDimensions.width,
-              minHeight: paperDimensions.height,
-              transform: `scale(${zoomLevel})`,
-              marginBottom: '80px',
+              width: Math.round(paperPixelDimensions.width * zoomLevel),
+              minHeight: Math.round(paperPixelDimensions.height * zoomLevel),
+              paddingBottom: '80px',
             }}
           >
-            {activeTable ? (
-              <MenuTemplateRenderer
-                table={activeTable}
-                menuItems={menuItems}
-                menuGroups={menuGroups}
-                categories={dbCategories}
-                merchant={merchant}
-                settings={settings}
-              />
-            ) : (
-              <div className="p-12 text-center text-slate-400">
-                <UtensilsCrossed className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="text-sm font-semibold">No Table Selected</p>
-                <p className="text-xs">Select or add a dining table to preview this print menu.</p>
-              </div>
-            )}
+            <div
+              id="printable-menu-root"
+              className="shadow-2xl rounded-sm border border-slate-300 dark:border-slate-700 bg-white"
+              style={{
+                width: paperDimensions.width,
+                minHeight: paperDimensions.height,
+                transform: `scale(${zoomLevel})`,
+                transformOrigin: 'top left',
+              }}
+            >
+              {activeTable ? (
+                <MenuTemplateRenderer
+                  table={activeTable}
+                  menuItems={menuItems}
+                  menuGroups={menuGroups}
+                  categories={dbCategories}
+                  merchant={merchant}
+                  settings={settings}
+                />
+              ) : (
+                <div className="p-12 text-center text-slate-400">
+                  <UtensilsCrossed className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-semibold">No Table Selected</p>
+                  <p className="text-xs">Select or add a dining table to preview this print menu.</p>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* ── PANE 3: Right Sidebar - Customization Engine (w-88) ────── */}
+        {/* ── PANE 3: Right Sidebar - Customization Engine ────────────── */}
         <aside
-          className={`w-full xl:w-88 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col h-full flex-shrink-0 overflow-y-auto ${
-            activeMobileTab === 'customize' ? 'flex' : 'hidden xl:flex'
+          className={`w-full xl:w-[380px] 2xl:w-[440px] 3xl:w-[480px] border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col h-full flex-shrink-0 overflow-y-auto transition-all duration-200 ${
+            activeMobileTab === 'customize' ? 'flex' : showRightSidebar ? 'hidden xl:flex' : 'hidden'
           }`}
         >
           <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 flex justify-between items-center">
@@ -977,15 +968,15 @@ export const PrintMenuPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-1.5">
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs"
+                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-sm"
                         style={{ backgroundColor: preset.previewColors.primary }}
                       />
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs"
+                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-sm"
                         style={{ backgroundColor: preset.previewColors.accent }}
                       />
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs"
+                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-sm"
                         style={{ backgroundColor: preset.previewColors.paper }}
                       />
                       <span className="text-[9px] font-bold text-slate-400 ml-auto uppercase">
@@ -1359,16 +1350,14 @@ export const PrintMenuPage: React.FC = () => {
       </div>
 
       {/* ── Generated Menu PDF Preview & Actions Modal ───────────────── */}
-      <React.Suspense fallback={null}>
-        <PdfPreviewModal
-          open={pdfModalOpen}
-          onOpenChange={setPdfModalOpen}
-          pdfBlobUrl={previewPdfUrl}
-          filename={previewFilename}
-          tableNumber={activeTable?.tableNumber}
-          source={previewSource}
-        />
-      </React.Suspense>
+      <PdfPreviewModal
+        open={pdfModalOpen}
+        onOpenChange={setPdfModalOpen}
+        pdfBlobUrl={previewPdfUrl}
+        filename={previewFilename}
+        tableNumber={activeTable?.tableNumber}
+        source={previewSource}
+      />
     </div>
   );
 };
@@ -1477,7 +1466,7 @@ const SortableCategoryCard: React.FC<SortableCategoryCardProps> = ({
       {isExpanded && (
         <div className="p-2.5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 space-y-3">
           {/* Sub-tabs inside Section: Section Style vs Dish Curation */}
-          <div className="flex border-b border-slate-150 dark:border-slate-800 text-[11px] font-bold">
+          <div className="flex border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold">
             <button
               type="button"
               onClick={() => onTabChange('style')}
@@ -1707,7 +1696,7 @@ const SlotRow: React.FC<SlotRowProps> = ({
               onClick={() => onChangePosition(p.key)}
               className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-all ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-2xs'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               } ${!visible ? 'opacity-40 cursor-not-allowed' : ''}`}
               title={`Position: ${p.key}`}

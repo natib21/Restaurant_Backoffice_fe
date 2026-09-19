@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/app/store';
 import { format } from 'date-fns';
 import { useAdjustStock, useBatchAdjustStock, useGetInventoryMovements } from '@/api/Queries/inventoryQueries';
 import type { StockMovement } from '@/api/Queries/inventoryQueries';
 import { useGetIngredientsList } from '@/api/Queries/ingredientQueries';
 import type { Ingredient } from '@/api/Queries/ingredientQueries';
+import { useBranchesQuery, type Branch } from '@/api/Queries/branchQueries';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -80,22 +83,59 @@ interface BatchRowState {
   reason: string;
 }
 
-const typeBadgeColor: Record<MovementType, string> = {
-  waste: 'bg-red-100 text-red-800 hover:bg-red-200',
-  adjustment: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
-  in: 'bg-green-100 text-green-800 hover:bg-green-200',
-  out: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
+const getIngredientName = (ing: any): string => {
+  if (!ing) return '—';
+  if (typeof ing === 'string') return ing;
+  return ing.name || '—';
 };
 
-const typeIcon: Record<MovementType, React.ReactNode> = {
-  waste: <Trash2 className="h-3 w-3 mr-1" />,
-  adjustment: <Scale className="h-3 w-3 mr-1" />,
-  in: <ArrowUpCircle className="h-3 w-3 mr-1" />,
-  out: <ArrowDownCircle className="h-3 w-3 mr-1" />,
+const getIngredientUnit = (ing: any): string => {
+  if (!ing || typeof ing === 'string') return '';
+  return ing.unit || '';
+};
+
+const getMovementTypeBadgeClass = (type: string): string => {
+  switch (type) {
+    case 'in':
+    case 'restoration':
+      return 'bg-green-100 text-green-800 hover:bg-green-200';
+    case 'out':
+    case 'deduction':
+      return 'bg-blue-100 text-blue-800 hover:bg-blue-200';
+    case 'waste':
+      return 'bg-red-100 text-red-800 hover:bg-red-200';
+    case 'adjustment':
+      return 'bg-purple-100 text-purple-800 hover:bg-purple-200';
+    default:
+      return 'bg-slate-100 text-slate-800 hover:bg-slate-200';
+  }
+};
+
+const getMovementTypeIcon = (type: string): React.ReactNode => {
+  switch (type) {
+    case 'in':
+    case 'restoration':
+      return <ArrowUpCircle className="h-3 w-3 mr-1" />;
+    case 'out':
+    case 'deduction':
+      return <ArrowDownCircle className="h-3 w-3 mr-1" />;
+    case 'waste':
+      return <Trash2 className="h-3 w-3 mr-1" />;
+    case 'adjustment':
+      return <Scale className="h-3 w-3 mr-1" />;
+    default:
+      return null;
+  }
 };
 
 const WasteTrackingPage: React.FC = () => {
   const { toast } = useToast();
+
+  const currentBranchId = useSelector((state: RootState) => state.ui.currentBranchId);
+  const { data: branchesData } = useBranchesQuery();
+  const branches: Branch[] = branchesData || [];
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const effectiveBranchId = selectedBranchId || currentBranchId || (branches[0]?._id ?? '');
 
   const [activeTab, setActiveTab] = useState<string>('activity');
   const [startDate, setStartDate] = useState<string>('');
@@ -122,8 +162,11 @@ const WasteTrackingPage: React.FC = () => {
 
   const adjustStockMutation = useAdjustStock();
   const batchAdjustStockMutation = useBatchAdjustStock();
-  const movementsQuery = useGetInventoryMovements({ type: 'waste,adjustment,in,out' });
-  const ingredientsQuery = useGetIngredientsList();
+  const movementsQuery = useGetInventoryMovements({
+    branchId: effectiveBranchId || undefined,
+    type: ['waste', 'adjustment', 'in', 'out'],
+  });
+  const ingredientsQuery = useGetIngredientsList(effectiveBranchId);
 
   const movements: StockMovement[] = useMemo(
     () => movementsQuery.data?.data?.movements ?? [],
@@ -145,8 +188,8 @@ const WasteTrackingPage: React.FC = () => {
 
     const ingredientWasteMap = new Map<string, { name: string; value: number }>();
     wasteMovements.forEach((m) => {
-      const ingredientName = m.ingredient?.name ?? 'Unknown';
-      const ingredientId = m.ingredient?._id ?? 'unknown';
+      const ingredientName = getIngredientName(m.ingredient);
+      const ingredientId = typeof m.ingredient === 'object' ? (m.ingredient?._id ?? ingredientName) : (m.ingredient || 'unknown');
       const value = (m.movementValue ?? Math.abs(m.quantity) * (m.costPerUnit ?? 0));
       const existing = ingredientWasteMap.get(ingredientId);
       if (existing) {
@@ -195,7 +238,7 @@ const WasteTrackingPage: React.FC = () => {
 
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const ingredientMatch = m.ingredient?.name?.toLowerCase().includes(q);
+        const ingredientMatch = getIngredientName(m.ingredient).toLowerCase().includes(q);
         const reasonMatch = m.reason?.toLowerCase().includes(q);
         const refMatch = m.reference?.toLowerCase().includes(q);
         if (!ingredientMatch && !reasonMatch && !refMatch) return false;
@@ -258,6 +301,7 @@ const WasteTrackingPage: React.FC = () => {
     try {
       await adjustStockMutation.mutateAsync({
         ingredientId: formState.ingredientId,
+        branchId: effectiveBranchId,
         quantity: qty,
         type: formState.type,
         reason: formState.reason.trim(),
@@ -325,7 +369,10 @@ const WasteTrackingPage: React.FC = () => {
     }
 
     try {
-      await batchAdjustStockMutation.mutateAsync({ adjustments });
+      await batchAdjustStockMutation.mutateAsync({
+        branchId: effectiveBranchId,
+        adjustments,
+      });
       toast({
         title: 'Success',
         description: `Batch operation with ${adjustments.length} adjustment(s) recorded.`,
@@ -737,20 +784,20 @@ const WasteTrackingPage: React.FC = () => {
                             {format(new Date(m.createdAt), 'MMM d, yyyy HH:mm')}
                           </TableCell>
                           <TableCell className="font-medium">
-                            {m.ingredient?.name ?? '—'}
-                            {m.ingredient?.unit && (
+                            {getIngredientName(m.ingredient)}
+                            {getIngredientUnit(m.ingredient) && (
                               <span className="text-xs text-muted-foreground ml-1">
-                                ({m.ingredient.unit})
+                                ({getIngredientUnit(m.ingredient)})
                               </span>
                             )}
                           </TableCell>
                           <TableCell>
                             <Badge
-                              className={typeBadgeColor[m.type] || ''}
+                              className={getMovementTypeBadgeClass(m.type)}
                               variant="secondary"
                             >
                               <span className="inline-flex items-center">
-                                {typeIcon[m.type]}
+                                {getMovementTypeIcon(m.type)}
                                 <span className="capitalize">{m.type}</span>
                               </span>
                             </Badge>
@@ -779,7 +826,7 @@ const WasteTrackingPage: React.FC = () => {
                                   {m.balance?.toLocaleString(undefined, {
                                     maximumFractionDigits: 2,
                                   }) ?? '—'}{' '}
-                                  {m.ingredient?.unit}
+                                  {getIngredientUnit(m.ingredient)}
                                 </div>
                                 <div>
                                   <span className="font-medium">Movement ID:</span>{' '}
