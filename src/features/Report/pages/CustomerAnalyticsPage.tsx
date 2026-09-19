@@ -443,13 +443,7 @@ const CustomerAnalyticsPage: React.FC = () => {
           />
           <DataCard
             title="Loyalty Distribution"
-            value={isLoading ? '...' : (
-              <span className="text-xs font-bold flex items-center gap-2">
-                <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30 text-[10px] gap-1"><Shield className="h-3 w-3" />{stats.bronze}</Badge>
-                <Badge className="bg-slate-200/60 text-slate-700 border-slate-300 text-[10px] gap-1"><Award className="h-3 w-3" />{stats.silver}</Badge>
-                <Badge className="bg-yellow-500/15 text-yellow-700 border-yellow-500/30 text-[10px] gap-1"><Crown className="h-3 w-3" />{stats.gold}</Badge>
-              </span>
-            )}
+            value={isLoading ? '...' : `B:${stats.bronze} S:${stats.silver} G:${stats.gold}`}
             icon={<Award className="h-5 w-5" />}
             theme="amber"
             subtitle="Bronze · Silver · Gold counts"

@@ -156,6 +156,7 @@ export const useBatchAdjustStock = () => {
 // Get stock movements (audit log)
 export const useGetInventoryMovements = (params?: {
   ingredientId?: string;
+  branchId?: string;
   type?: string;
   startDate?: string;
   endDate?: string;

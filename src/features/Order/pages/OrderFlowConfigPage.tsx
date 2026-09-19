@@ -75,19 +75,6 @@ const CHANNELS: ChannelMeta[] = [
       'Recommended: Review by Waiter before sending tickets to kitchen to prevent accidental/fake orders.',
   },
   {
-    id: 'qr',
-    title: 'QR Customer Orders',
-    subtitle: 'Dedicated QR table ordering flow',
-    icon: Smartphone,
-    colorClass: 'text-teal-600 bg-teal-50 border-teal-200 dark:bg-teal-950/40 dark:border-teal-800',
-    badgeBg: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300',
-    badgeText: 'QR Orders',
-    description:
-      'Orders placed by customers scanning QR code at the table. This is the customer-facing mobile/table ordering path.',
-    exampleUse:
-      'Recommended: Require waiter review for table orders to prevent accidental or fake payment-free orders.',
-  },
-  {
     id: 'telegram',
     title: 'Telegram Mini-App & Bot',
     subtitle: 'Conversational & in-app chat orders',
@@ -178,7 +165,6 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: false, reviewerRole: null },
       web: { requiresReview: true, reviewerRole: 'waiter' },
-      qr: { requiresReview: true, reviewerRole: 'waiter' },
       admin: { requiresReview: true, reviewerRole: 'support' },
       telegram: { requiresReview: true, reviewerRole: 'support' },
     });
@@ -187,7 +173,6 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: false, reviewerRole: null },
       web: { requiresReview: false, reviewerRole: null },
-      qr: { requiresReview: false, reviewerRole: null },
       admin: { requiresReview: false, reviewerRole: null },
       telegram: { requiresReview: false, reviewerRole: null },
     });
@@ -196,7 +181,6 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: true, reviewerRole: 'waiter' },
       web: { requiresReview: true, reviewerRole: 'waiter' },
-      qr: { requiresReview: true, reviewerRole: 'waiter' },
       admin: { requiresReview: true, reviewerRole: 'support' },
       telegram: { requiresReview: true, reviewerRole: 'support' },
     });

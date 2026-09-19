@@ -21,14 +21,14 @@ import {
 } from 'lucide-react';
 
 import { PageHeader, DataCard, type ColumnDef } from '@/components/Common';
-import { DataViewSystem } from '@/components/Common/AdvancedFilter';
+import { DataViewSystem } from '@/components/Common/AdavanceFilter';
 import type {
   QuickFilterOption,
   AdvancedFilterField,
   GroupByOption,
   SortOption,
   BulkAction,
-} from '@/components/Common/AdvancedFilter/types';
+} from '@/components/Common/AdavanceFilter/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -129,33 +129,33 @@ export const PermissionsDirectoryPage: React.FC = () => {
       label: 'Assigned in Roles',
       count: assignedCount,
       icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
-      matcher: (t) => t.isAssigned,
+      matcher: (t: any) => t.isAssigned,
     },
     {
       key: 'unassigned',
       label: 'Unassigned',
       count: tasks.length - assignedCount,
       icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />,
-      matcher: (t) => !t.isAssigned,
+      matcher: (t: any) => !t.isAssigned,
     },
     {
       key: 'get_methods',
       label: 'Read (GET)',
       count: readCount,
-      matcher: (t) => t.method === 'GET',
+      matcher: (t: any) => t.method === 'GET',
     },
     {
       key: 'mutations',
       label: 'Modify / Create',
       count: writeCount,
-      matcher: (t) => t.method === 'POST' || t.method === 'PUT' || t.method === 'PATCH',
+      matcher: (t: any) => t.method === 'POST' || t.method === 'PUT' || t.method === 'PATCH',
     },
     {
       key: 'destructive',
       label: 'Destructive (DELETE)',
       count: deleteCount,
       icon: <Lock className="h-3.5 w-3.5 text-rose-500" />,
-      matcher: (t) => t.method === 'DELETE',
+      matcher: (t: any) => t.method === 'DELETE',
     },
   ];
 
@@ -206,17 +206,17 @@ export const PermissionsDirectoryPage: React.FC = () => {
     {
       id: 'domain',
       label: 'Functional Domain',
-      accessor: (t) => t.domain || 'General & System',
+      accessor: (t: any) => t.domain || 'General & System',
     },
     {
       id: 'method',
       label: 'HTTP Method',
-      accessor: (t) => t.method || 'GET',
+      accessor: (t: any) => t.method || 'GET',
     },
     {
       id: 'assigned',
       label: 'Assignment Status',
-      accessor: (t) => (t.isAssigned ? 'Assigned Capabilities' : 'Unassigned Capabilities'),
+      accessor: (t: any) => (t.isAssigned ? 'Assigned Capabilities' : 'Unassigned Capabilities'),
     },
   ];
 
@@ -392,12 +392,12 @@ export const PermissionsDirectoryPage: React.FC = () => {
           defaultSortField="name"
           presetStorageKey="merchant_permissions_view"
           selectable={false}
-          onItemClick={(task) => setSelectedTask(task)}
+          onItemClick={(task: any) => setSelectedTask(task)}
           exportFileName="merchant_permissions_export"
           emptyIcon={<KeyRound className="h-8 w-8 text-slate-400" />}
           emptyTitle="No Capabilities Found"
           emptyDescription="No capabilities match your active search and filter criteria."
-          renderCustomCard={(task) => {
+          renderCustomCard={(task: any) => {
             const methodStyle = getMethodStyle(task.method);
             return (
               <div

@@ -101,6 +101,7 @@ const PAPER_BG: Record<PaperColor, string> = {
   'warm-white': '#fefaf6',
   cream: '#fdf6e3',
   'light-beige': '#f5efe4',
+  'dark-slate': '#1e293b',
 };
 
 // ─── Border Utilities ─────────────────────────────────────────────────────────

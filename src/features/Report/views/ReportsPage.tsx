@@ -109,8 +109,8 @@ export const ReportsPage: React.FC = () => {
         params={queryParams}
         onChangeParams={handleUpdateParams}
         onRefresh={() => setQueryParams((prev) => ({ ...prev }))}
-        onOpenExportModal={(fmt) => {
-          setExportInitialFormat(fmt || 'pdf');
+        onOpenExportModal={() => {
+          setExportInitialFormat('pdf');
           setIsExportModalOpen(true);
         }}
       />
@@ -172,7 +172,6 @@ export const ReportsPage: React.FC = () => {
         onClose={() => setIsExportModalOpen(false)}
         reportType={activeTab}
         params={queryParams}
-        defaultFormat={exportInitialFormat}
       />
     </div>
   );

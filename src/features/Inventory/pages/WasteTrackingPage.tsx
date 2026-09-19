@@ -164,9 +164,8 @@ const WasteTrackingPage: React.FC = () => {
   const batchAdjustStockMutation = useBatchAdjustStock();
   const movementsQuery = useGetInventoryMovements({
     branchId: effectiveBranchId || undefined,
-    type: ['waste', 'adjustment', 'in', 'out'],
   });
-  const ingredientsQuery = useGetIngredientsList(effectiveBranchId);
+  const ingredientsQuery = useGetIngredientsList();
 
   const movements: StockMovement[] = useMemo(
     () => movementsQuery.data?.data?.movements ?? [],
@@ -301,7 +300,6 @@ const WasteTrackingPage: React.FC = () => {
     try {
       await adjustStockMutation.mutateAsync({
         ingredientId: formState.ingredientId,
-        branchId: effectiveBranchId,
         quantity: qty,
         type: formState.type,
         reason: formState.reason.trim(),
@@ -370,7 +368,6 @@ const WasteTrackingPage: React.FC = () => {
 
     try {
       await batchAdjustStockMutation.mutateAsync({
-        branchId: effectiveBranchId,
         adjustments,
       });
       toast({
