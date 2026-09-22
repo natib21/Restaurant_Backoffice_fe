@@ -49,21 +49,14 @@ export interface IngredientListResponse {
 }
 
 // List all ingredients (branch-scoped if branchId is provided)
+// List all ingredients
 export const useGetIngredientsList = (branchId?: string) => {
   return useQuery<IngredientListResponse>({
     queryKey: ['ingredientsList', branchId],
     queryFn: async () => {
       const params = branchId ? { branchId } : undefined;
-      try {
-        const response = await api.get('/v1/inventory/ingredients', { params });
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get('/v1/ingredients', { params });
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get('/v1/ingredients', { params }); // ✅ Correct
+      return response.data;
     },
   });
 };
@@ -74,16 +67,8 @@ export const useGetIngredientDetails = (ingredientId?: string) => {
     queryKey: ['ingredientDetails', ingredientId],
     queryFn: async () => {
       if (!ingredientId) throw new Error('Ingredient ID is required');
-      try {
-        const response = await api.get(`/v1/inventory/ingredients/${ingredientId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get(`/v1/ingredients/${ingredientId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get(`/v1/ingredients/${ingredientId}`); // ✅ Correct
+      return response.data;
     },
     enabled: !!ingredientId,
   });
@@ -95,16 +80,8 @@ export const useCreateIngredient = () => {
 
   return useMutation({
     mutationFn: async (data: IngredientCreateRequest) => {
-      try {
-        const response = await api.post('/v1/inventory/ingredients', data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.post('/v1/ingredients', data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.post('/v1/ingredients', data); // ✅ Correct
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingredientsList'] });
@@ -120,16 +97,8 @@ export const useUpdateIngredient = () => {
 
   return useMutation({
     mutationFn: async ({ ingredientId, data }: { ingredientId: string; data: Partial<IngredientCreateRequest> }) => {
-      try {
-        const response = await api.patch(`/v1/inventory/ingredients/${ingredientId}`, data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.patch(`/v1/ingredients/${ingredientId}`, data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.patch(`/v1/ingredients/${ingredientId}`, data); // ✅ Correct
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['ingredientDetails', variables.ingredientId] });
@@ -146,16 +115,8 @@ export const useDeleteIngredient = () => {
 
   return useMutation({
     mutationFn: async (ingredientId: string) => {
-      try {
-        const response = await api.delete(`/v1/inventory/ingredients/${ingredientId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.delete(`/v1/ingredients/${ingredientId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.delete(`/v1/ingredients/${ingredientId}`); // ✅ Correct
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingredientsList'] });
