@@ -190,50 +190,36 @@ const fetchActiveOrdersResponse = async (
 const fetchAllOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
-  try {
-    const { data } = await api.get('/v1/orders', { params });
-    const parsed = parseOrdersResponse(data);
-    if (parsed.orders && parsed.orders.length > 0) {
-      return parsed;
+  // Backend only has status-specific routes, not a general /v1/orders endpoint
+  // Fetch both active and completed orders to get all statuses
+  const [activeRes, completedRes] = await Promise.allSettled([
+    api.get('/v1/orders/active', { params }),
+    api.get('/v1/orders/completed', { params }),
+  ]);
+
+  const activeOrders: Order[] =
+    activeRes.status === 'fulfilled'
+      ? (activeRes.value.data?.data?.orders ?? activeRes.value.data?.orders ?? [])
+      : [];
+  const completedOrders: Order[] =
+    completedRes.status === 'fulfilled'
+      ? (completedRes.value.data?.data?.orders ?? completedRes.value.data?.orders ?? [])
+      : [];
+
+  const orderMap = new Map<string, Order>();
+  [...activeOrders, ...completedOrders].forEach((ord) => {
+    const id = ord._id || (ord as any).id;
+    if (id) {
+      orderMap.set(id, ord);
     }
-  } catch (err: any) {
-    console.debug('Direct /v1/order query fallback', err);
-  }
+  });
 
-  // Fallback / Aggregation: Query both active and completed orders to guarantee all statuses are fetched
-  try {
-    const [activeRes, completedRes] = await Promise.allSettled([
-      api.get('/v1/orders/active', { params }),
-      api.get('/v1/orders/completed', { params }),
-    ]);
-
-    const activeOrders: Order[] =
-      activeRes.status === 'fulfilled'
-        ? (activeRes.value.data?.data?.orders ?? activeRes.value.data?.orders ?? [])
-        : [];
-    const completedOrders: Order[] =
-      completedRes.status === 'fulfilled'
-        ? (completedRes.value.data?.data?.orders ?? completedRes.value.data?.orders ?? [])
-        : [];
-
-    const orderMap = new Map<string, Order>();
-    [...activeOrders, ...completedOrders].forEach((ord) => {
-      const id = ord._id || (ord as any).id;
-      if (id) {
-        orderMap.set(id, ord);
-      }
-    });
-
-    const allOrders = Array.from(orderMap.values());
-    return {
-      orders: allOrders,
-      total: allOrders.length,
-      count: allOrders.length,
-    };
-  } catch (fallbackError) {
-    const { data } = await api.get('/v1/orders/active', { params });
-    return parseOrdersResponse(data);
-  }
+  const allOrders = Array.from(orderMap.values());
+  return {
+    orders: allOrders,
+    total: allOrders.length,
+    count: allOrders.length,
+  };
 };
 
 const fetchOrders = async (
