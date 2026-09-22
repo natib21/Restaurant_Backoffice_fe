@@ -150,7 +150,16 @@ const MenuItemsPage = () => {
   const getImageSrc = (item: any) => {
     const path = item?.imageUrl || item?.imageData?.url || null;
     if (!path) return null;
-    return path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+    if (path.startsWith('http')) return path;
+    
+    // Handle paths that already include /api prefix to avoid duplication
+    // If VITE_API_URL ends with /api and path starts with /api, remove one /api
+    const baseUrl = API_BASE_URL;
+    const cleanPath = baseUrl.endsWith('/api') && path.startsWith('/api') 
+      ? path.slice(4) // Remove /api from path
+      : path;
+    
+    return `${baseUrl}${cleanPath}`;
   };
 
   const getPriceRange = (variants: any[] | undefined) => {

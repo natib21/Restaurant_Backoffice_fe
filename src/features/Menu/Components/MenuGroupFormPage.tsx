@@ -169,7 +169,17 @@ const getItemImageSrc = (data: any) => {
   if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) {
     return path;
   }
-  return `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+  
+  // Handle paths that already include /api prefix to avoid duplication
+  const baseUrl = API_BASE_URL.replace(/\/$/, '');
+  const cleanPath = path.replace(/^\//, '');
+  
+  // If baseUrl ends with /api and path starts with api/, remove api/ from path
+  if (baseUrl.endsWith('/api') && cleanPath.startsWith('api/')) {
+    return `${baseUrl}/${cleanPath.slice(4)}`; // Remove 'api/' prefix from path
+  }
+  
+  return `${baseUrl}/${cleanPath}`;
 };
 
 // Sortable Row Component for Drag and Drop
