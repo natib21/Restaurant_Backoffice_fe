@@ -6,7 +6,7 @@ export interface StockAdjustmentRequest {
   ingredientId: string;
   quantity: number;
   type: 'in' | 'out' | 'waste' | 'adjustment';
-  reason: string;
+  reason?: string;
   reference?: string; // e.g., PO number
   cost?: number; // Per-unit cost
 }

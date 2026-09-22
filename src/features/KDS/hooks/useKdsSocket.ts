@@ -44,8 +44,9 @@ export function useKdsSocket({
 
       const socket: Socket = io(socketUrl, {
         path: '/socket.io',
+        withCredentials: true,
         auth: { token },
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionAttempts: 20,
         reconnectionDelay: 1000,

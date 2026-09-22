@@ -15,7 +15,17 @@ import {
   Clock,
   Check,
   AlertTriangle,
+  FileText,
+  FileSpreadsheet,
+  ChevronDown,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { format, subDays, startOfMonth, startOfYear, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
 import { useBranchesQuery, type Branch } from '@/api/Queries/branchQueries';
@@ -27,7 +37,7 @@ interface ReportHeaderControlsProps {
   params: ReportQueryParams;
   onChangeParams: (newParams: Partial<ReportQueryParams>) => void;
   onRefresh: () => void;
-  onOpenExportModal: () => void;
+  onOpenExportModal: (format?: 'pdf' | 'csv') => void;
   isLoading?: boolean;
 }
 
@@ -319,14 +329,59 @@ export const ReportHeaderControls: React.FC<ReportHeaderControlsProps> = ({
           <span className="hidden sm:inline">Refresh</span>
         </Button>
 
-        <Button
-          onClick={onOpenExportModal}
-          size="sm"
-          className="h-9 px-3.5 text-xs font-bold rounded-xl gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-2xs"
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span>Export Report</span>
-        </Button>
+        {/* Quick PDF & Export Split Dropdown */}
+        <div className="inline-flex rounded-xl shadow-xs">
+          <Button
+            onClick={() => onOpenExportModal('pdf')}
+            size="sm"
+            className="h-9 px-3.5 text-xs font-bold rounded-l-xl rounded-r-none gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span>Export PDF</span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="h-9 px-2 rounded-r-xl rounded-l-none border-l border-rose-700/60 bg-rose-600 hover:bg-rose-700 text-white"
+                aria-label="Export options"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 rounded-xl p-1 shadow-lg">
+              <DropdownMenuItem
+                onClick={() => onOpenExportModal('pdf')}
+                className="text-xs font-medium gap-2 cursor-pointer rounded-lg py-2"
+              >
+                <FileText className="h-3.5 w-3.5 text-rose-600" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Export as PDF</span>
+                  <span className="text-[10px] text-slate-400">Formatted report with charts</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onOpenExportModal('csv')}
+                className="text-xs font-medium gap-2 cursor-pointer rounded-lg py-2"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Export as CSV</span>
+                  <span className="text-[10px] text-slate-400">Raw tabular spreadsheet</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={() => onOpenExportModal()}
+                className="text-xs font-medium gap-2 cursor-pointer rounded-lg py-1.5 text-slate-500"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>All Export Options...</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </div>
   );

@@ -162,7 +162,34 @@ export function filterAndGroupMenuData({
   });
 
   // Filter out empty categories and return array
-  return Array.from(categoryMap.values()).filter((c) => c.items.length > 0);
+  const rawCategories = Array.from(categoryMap.values()).filter((c) => c.items.length > 0);
+
+  // Apply DnD category order if defined in settings
+  if (settings.categoryOrder && settings.categoryOrder.length > 0) {
+    const orderMap = new Map<string, number>();
+    settings.categoryOrder.forEach((id, index) => {
+      orderMap.set(id, index);
+    });
+
+    return rawCategories.sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 9999;
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 9999;
+      return idxA - idxB;
+    });
+  }
+
+  return rawCategories;
+}
+
+export function getSectionConfig(categoryId: string, settings: PrintMenuSettings) {
+  const custom = settings.sectionConfigs?.[categoryId];
+  return {
+    layout: custom?.layout || settings.defaultSectionLayout || 'list-with-photos',
+    backgroundTint: custom?.backgroundTint || 'none',
+    dividerStyle: custom?.dividerStyle || 'line',
+    density: custom?.density || 'normal',
+    showPhotos: custom?.showPhotos !== undefined ? custom.showPhotos : settings.showImages,
+  };
 }
 
 export function formatPrice(price: number, currency: string = 'ETB'): string {
@@ -173,7 +200,10 @@ export function formatPrice(price: number, currency: string = 'ETB'): string {
   })}`;
 }
 
-export function getTableQrData(table?: Table | null, customUrl?: string): string {
+export function getTableQrData(table?: Table | null, customUrl?: string, settings?: PrintMenuSettings): string {
+  if (settings?.qrCodeData && settings.qrCodeData.trim() !== '') {
+    return settings.qrCodeData.trim();
+  }
   if (!table) return 'https://restoflow.app/order';
   if (customUrl) return customUrl;
   if (table.qrUrl) return table.qrUrl;

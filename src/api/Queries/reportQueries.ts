@@ -339,7 +339,7 @@ export interface CreateExportJobInput {
   dateFrom: string;
   dateTo: string;
   branchId?: string | null;
-  format?: 'csv'; // Only CSV is operational right now (xlsx/pdf return 501)
+  format?: 'csv' | 'pdf' | 'xlsx';
 }
 
 export interface ExportJob {
@@ -483,34 +483,153 @@ export const useProfitabilityReportQuery = (params: ReportQueryParams, enabled =
 // ─── Export Mutations & Polling ───────────────────────────────────────────────
 
 export const useCreateExportJobMutation = () =>
-  useMutation<{ data: ExportJob }, AxiosError, CreateExportJobInput>({
+  useMutation<{ status: string; data: ExportJob }, AxiosError, CreateExportJobInput>({
     mutationFn: async (payload) => {
       const body: Record<string, any> = {
         reportType: payload.reportType,
         dateFrom: payload.dateFrom,
         dateTo: payload.dateTo,
-        format: payload.format || 'csv',
+        format: payload.format || 'pdf',
       };
       if (payload.branchId) body.branchId = payload.branchId;
-      const { data } = await api.post('/v1/reports/exports', body);
-      return data;
+
+      try {
+        const { data } = await api.post('/v1/reports/export', body);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const { data } = await api.post('/v1/reports/exports', body);
+          return data;
+        }
+        throw err;
+      }
     },
   });
 
 export const useExportJobStatusQuery = (jobId: string | null, enabled = true) =>
-  useQuery<{ data: ExportJob }, AxiosError>({
+  useQuery<{ status: string; data: ExportJob }, AxiosError>({
     queryKey: reportKeys.exportJob(jobId || ''),
     queryFn: async () => {
-      const { data } = await api.get(`/v1/reports/exports/${jobId}`);
-      return data;
+      try {
+        const { data } = await api.get(`/v1/reports/export/${jobId}`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const { data } = await api.get(`/v1/reports/exports/${jobId}`);
+          return data;
+        }
+        throw err;
+      }
     },
     enabled: enabled && !!jobId,
     refetchInterval: (query) => {
       const status = query.state.data?.data?.status;
       if (status === 'ready' || status === 'failed') return false;
-      return 2500; // Poll every 2.5 seconds while pending/processing
+      return 2000; // Poll every 2.0 seconds while pending/processing
     },
   });
+
+/**
+ * Downloads a generated file from /api/v1/files/{fileId} with authorization headers
+ */
+export const downloadExportedFile = async (fileId: string, filename?: string) => {
+  const response = await api.get(`/v1/files/${fileId}`, {
+    responseType: 'blob',
+  });
+
+  const contentType = String(response.headers['content-type'] || 'application/pdf');
+  const blob = new Blob([response.data], { type: contentType });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename || `report_${fileId}.pdf`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+/**
+ * End-to-end PDF Export utility:
+ * 1. POST /api/v1/reports/export (format: "pdf")
+ * 2. Poll GET /api/v1/reports/export/{jobId} until ready
+ * 3. Download GET /api/v1/files/{fileId}
+ */
+export const exportReportPDF = async (
+  reportType: ReportType,
+  dateFrom: string,
+  dateTo: string,
+  branchId?: string | null,
+  onStatusChange?: (status: 'pending' | 'processing' | 'ready' | 'failed') => void
+): Promise<{ jobId: string; fileId: string }> => {
+  // Step 1: Create export job
+  const body: Record<string, any> = {
+    reportType,
+    dateFrom,
+    dateTo,
+    format: 'pdf',
+  };
+  if (branchId) body.branchId = branchId;
+
+  let jobResponseData: any;
+  try {
+    const res = await api.post('/v1/reports/export', body);
+    jobResponseData = res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const res = await api.post('/v1/reports/exports', body);
+      jobResponseData = res.data;
+    } else {
+      throw err;
+    }
+  }
+
+  const jobId = jobResponseData?.data?.jobId;
+  if (!jobId) {
+    throw new Error('No export job ID returned from server');
+  }
+
+  // Step 2: Poll for completion
+  let status: 'pending' | 'processing' | 'ready' | 'failed' = jobResponseData?.data?.status || 'pending';
+  let fileId: string | null = jobResponseData?.data?.fileId || null;
+
+  while (status === 'pending' || status === 'processing') {
+    onStatusChange?.(status);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    let statusResponseData: any;
+    try {
+      const res = await api.get(`/v1/reports/export/${jobId}`);
+      statusResponseData = res.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        const res = await api.get(`/v1/reports/exports/${jobId}`);
+        statusResponseData = res.data;
+      } else {
+        throw err;
+      }
+    }
+
+    status = statusResponseData?.data?.status;
+    fileId = statusResponseData?.data?.fileId;
+
+    if (status === 'failed') {
+      throw new Error(statusResponseData?.data?.errorMessage || 'PDF generation failed');
+    }
+  }
+
+  onStatusChange?.('ready');
+
+  if (!fileId) {
+    throw new Error('Export job succeeded but no file ID was provided');
+  }
+
+  // Step 3: Download PDF file
+  const fileName = `${reportType}_report_${dateFrom.slice(0, 10)}_to_${dateTo.slice(0, 10)}.pdf`;
+  await downloadExportedFile(fileId, fileName);
+
+  return { jobId, fileId };
+};
 
 /**
  * Direct Synchronous CSV Export helper

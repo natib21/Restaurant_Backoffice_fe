@@ -4,10 +4,39 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
+import { refreshUserContext } from '@/lib/authSession';
+import { setCurrentBranch } from '@/components/Layout/layoutSlice';
+import { useDispatch } from 'react-redux';
 
 /* ======================================================
    Types
 ====================================================== */
+
+export interface BranchAutoAssignWarning {
+  code: string;
+  message: string;
+  details?: string;
+}
+
+export interface BranchRefreshHint {
+  code: string;
+  message: string;
+}
+
+export interface BranchCreateResponse {
+  status: string;
+  data: {
+    branch: Branch;
+  };
+  warning?: BranchAutoAssignWarning;
+  refreshHint?: BranchRefreshHint;
+}
+
+export interface BranchCreateResult extends Partial<Branch> {
+  branch: Branch;
+  warning?: BranchAutoAssignWarning;
+  refreshHint?: BranchRefreshHint;
+}
 
 export interface BranchLocation {
   coordinates: [number, number]; // [lng, lat]
@@ -105,9 +134,32 @@ const fetchBranch = async (id: string): Promise<Branch> => {
   return data.data.branch;
 };
 
-const createBranch = async (input: CreateBranchInput): Promise<Branch> => {
-  const { data } = await api.post('/v1/branch', input);
-  return data.data.branch;
+const createBranch = async (
+  input: CreateBranchInput
+): Promise<BranchCreateResult> => {
+  let response;
+  try {
+    response = await api.post<BranchCreateResponse>('/v1/branches', input);
+  } catch (err: any) {
+    // Fallback to singular endpoint if plural router is not mounted
+    if (err?.response?.status === 404) {
+      response = await api.post<BranchCreateResponse>('/v1/branch', input);
+    } else {
+      throw err;
+    }
+  }
+
+  const resData = response.data;
+  const branch = resData?.data?.branch || (resData as any)?.branch;
+  const warning = resData?.warning;
+  const refreshHint = resData?.refreshHint;
+
+  return {
+    ...branch,
+    branch,
+    warning,
+    refreshHint,
+  };
 };
 
 const updateBranch = async ({
@@ -227,11 +279,43 @@ export const useBranchQuery = (id?: string) =>
 /* ---------- Create Branch ---------- */
 export const useCreateBranchMutation = () => {
   const queryClient = useQueryClient();
-  return useMutation<Branch, AxiosError, CreateBranchInput>({
+  const dispatch = useDispatch();
+
+  return useMutation<BranchCreateResult, AxiosError<any>, CreateBranchInput>({
     mutationFn: createBranch,
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      // 1. Invalidate branch list queries to update the UI list
       queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
-      toast.success('Branch created successfully');
+
+      // 2. Handle warning if auto-assignment failed on backend
+      if (data.warning) {
+        toast.warning(data.warning.message || 'Branch created, but could not auto-assign to your access list', {
+          description: data.warning.details,
+          duration: 7000,
+        });
+        console.warn('Branch auto-assign warning:', data.warning);
+      } else {
+        toast.success(`Branch "${data.branch?.name || data.name}" created successfully!`);
+      }
+
+      // 3. Refresh user context if refreshHint is returned (e.g. MANAGER auto-assigned)
+      if (data.refreshHint) {
+        console.log('Branch access updated on user profile - refreshing user context and JWT claims...');
+        try {
+          await refreshUserContext();
+        } catch (refreshErr) {
+          console.error('Failed to refresh user context after branch auto-assignment:', refreshErr);
+        }
+      }
+
+      // 4. Optionally switch active branch to the newly created branch for MANAGER role
+      const currentUser: any = queryClient.getQueryData(['user']);
+      const roleName = currentUser?.role?.name || currentUser?.role;
+      const branchId = data.branch?._id || data._id;
+
+      if ((roleName === 'MANAGER' || roleName === 'MERCHANT-ADMIN') && branchId) {
+        dispatch(setCurrentBranch(branchId));
+      }
     },
     onError: (error: AxiosError<any>) => {
       toast.error(error.response?.data?.message || 'Failed to create branch');
@@ -605,5 +689,8 @@ export const useRemoveUserBranchMutation = () => {
     },
   });
 };
+
+export { refreshUserContext, forceReLogin } from '@/lib/authSession';
+
 
 

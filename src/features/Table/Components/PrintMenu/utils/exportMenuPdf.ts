@@ -1,12 +1,19 @@
 // src/features/Table/Components/PrintMenu/utils/exportMenuPdf.ts
 import { useState, useCallback } from 'react';
+import axios from 'axios';
 import Cookies from 'js-cookie';
+import { api } from '@/lib/api';
 import type { PrintMenuSettings, FontFamily, FontSize } from '../types';
-import type { MenuItem, MenuGroup } from '@/api/Queries/menuQueries';
+import {
+  renderMenuPdf,
+  getRenderPdfEndpoint,
+  type MenuItem,
+  type MenuGroup,
+} from '@/api/Queries/menuQueries';
+export { getRenderPdfEndpoint };
 import type { Category } from '@/api/Queries/categoryQueries';
 import {
   filterAndGroupMenuData,
-  formatPrice,
   type ProcessedCategory,
 } from './templateUtils';
 
@@ -23,64 +30,79 @@ export class RenderPdfError extends Error {
   }
 }
 
-// ── Payload Shape Required by POST /api/v1/menu/render-pdf ────────
+// ── Backend PDF Render Specification Interfaces ──────────────────
 export interface MenuPdfFontConfig {
   family: string;
   size: number;
-  weight: string;
+  weight: number;
 }
 
+export interface MenuPdfItem {
+  name: string;
+  description?: string;
+  price: number;
+  category?: string;
+  isPopular?: boolean;
+  tags?: string[];
+  imageUrl?: string;
+  photoUrl?: string;
+  variants?: Array<{ name: string; price: number }>;
+}
+
+export interface MenuPdfCategory {
+  name: string;
+  layout: 'grid-2col' | 'list-with-photos' | 'compact-price-list' | string;
+  backgroundTint?: 'none' | 'subtle' | 'card' | string;
+  dividerStyle?: 'line' | 'dashed' | 'none' | string;
+  density?: 'compact' | 'normal' | 'relaxed' | string;
+  items: MenuPdfItem[];
+}
+
+export interface MenuPdfBranding {
+  name: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  phone?: string;
+  location?: string;
+  accent?: string;
+}
+
+export interface MenuPdfColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  text: string;
+  border: string;
+}
+
+export interface MenuPdfMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Top-level payload required by POST /api/v1/menu/render-pdf
+ */
 export interface MenuPdfPayload {
-  settings: {
-    title: string;
-    subtitle?: string;
-    paperSize: string;
-    orientation: string;
-    qrCodeData: string;
-    branding: {
-      name: string;
-      logoUrl?: string;
-      phone?: string;
-      location?: string;
-    };
-    colors: {
-      primary: string;
-      secondary: string;
-      accent: string;
-      background: string;
-      text: string;
-      border: string;
-    };
-    fonts: {
-      heading: MenuPdfFontConfig;
-      body: MenuPdfFontConfig;
-      accent: MenuPdfFontConfig;
-    };
-    margins: {
-      top: number;
-      right: number;
-      bottom: number;
-      left: number;
-    };
-    categories: Array<{
-      id?: string;
-      name: string;
-      amharicName?: string;
-      description?: string;
-      layout?: string;
-      items: Array<{
-        id?: string;
-        name: string;
-        amharicName?: string;
-        description?: string;
-        price: number;
-        formattedPrice?: string;
-        tags?: string[];
-        image?: string;
-        variants?: Array<{ name: string; price: number }>;
-      }>;
-    }>;
+  templateId?: string;
+  paperSize: 'a4' | 'a5' | 'letter' | 'legal' | 'tabloid' | string;
+  orientation: 'portrait' | 'landscape' | string;
+  title: string;
+  subtitle?: string;
+  branding: MenuPdfBranding;
+  colors: MenuPdfColors;
+  fonts: {
+    heading: MenuPdfFontConfig;
+    body: MenuPdfFontConfig;
+    accent: MenuPdfFontConfig;
   };
+  margins: MenuPdfMargins;
+  categories: MenuPdfCategory[];
+  items: MenuPdfItem[];
+  qrCodeData: string;
 }
 
 export interface ExportMenuPdfOptions {
@@ -94,7 +116,7 @@ export interface ExportMenuPdfOptions {
 }
 
 /**
- * Retrieve auth token from all possible client storage locations
+ * Retrieve auth token from client storage if available (optional for public endpoint)
  */
 export function getAuthToken(): string | null {
   return (
@@ -111,69 +133,46 @@ export function getAuthToken(): string | null {
   );
 }
 
-/**
- * Determine full endpoint URL for PDF rendering
- */
-export function getRenderPdfEndpoint(): string {
-  const baseUrl = import.meta.env.VITE_API_URL;
-  if (!baseUrl) {
-    return '/api/v1/menu/render-pdf';
-  }
-  const cleanBase = baseUrl.replace(/\/+$/, '');
-  if (cleanBase.endsWith('/api')) {
-    return `${cleanBase}/v1/menu/render-pdf`;
-  }
-  if (cleanBase.endsWith('/api/v1')) {
-    return `${cleanBase}/menu/render-pdf`;
-  }
-  return `${cleanBase}/api/v1/menu/render-pdf`;
-}
 
 /**
- * Maps font family and font size settings into font configurations
+ * Maps font family and font size settings into font configurations with numeric weights
  */
 function mapFonts(fontFamily: FontFamily, fontSize: FontSize) {
-  let familyStr = "'Noto Sans', sans-serif";
-  if (fontFamily === 'serif') {
-    familyStr = "'Noto Serif', Georgia, serif";
-  } else if (fontFamily === 'cinzel') {
-    familyStr = "'Cinzel', 'Noto Serif', serif";
-  } else if (fontFamily === 'playfair') {
-    familyStr = "'Playfair Display', 'Noto Serif', serif";
+  let familyStr = 'Noto Sans';
+  if (fontFamily === 'serif' || fontFamily === 'cinzel' || fontFamily === 'playfair') {
+    familyStr = 'Noto Serif';
   } else if (fontFamily === 'mono') {
-    familyStr = "monospace";
-  } else if (fontFamily === 'inter') {
-    familyStr = "'Inter', 'Noto Sans', sans-serif";
+    familyStr = 'monospace';
   }
 
   if (fontSize === 'small') {
     return {
-      heading: { family: familyStr, size: 18, weight: '700' },
-      body: { family: familyStr, size: 12, weight: '400' },
-      accent: { family: familyStr, size: 11, weight: '600' },
+      heading: { family: familyStr, size: 18, weight: 700 },
+      body: { family: familyStr, size: 12, weight: 400 },
+      accent: { family: familyStr, size: 11, weight: 600 },
     };
   }
 
   if (fontSize === 'large') {
     return {
-      heading: { family: familyStr, size: 26, weight: '700' },
-      body: { family: familyStr, size: 16, weight: '400' },
-      accent: { family: familyStr, size: 14, weight: '600' },
+      heading: { family: familyStr, size: 26, weight: 700 },
+      body: { family: familyStr, size: 16, weight: 400 },
+      accent: { family: familyStr, size: 14, weight: 600 },
     };
   }
 
   // default 'medium'
   return {
-    heading: { family: familyStr, size: 22, weight: '700' },
-    body: { family: familyStr, size: 14, weight: '400' },
-    accent: { family: familyStr, size: 12, weight: '600' },
+    heading: { family: familyStr, size: 22, weight: 700 },
+    body: { family: familyStr, size: 14, weight: 400 },
+    accent: { family: familyStr, size: 12, weight: 600 },
   };
 }
 
 /**
  * Maps colors based on primary, secondary, accent, and paper tones
  */
-function mapColors(settings: PrintMenuSettings) {
+function mapColors(settings: PrintMenuSettings): MenuPdfColors {
   const isDark = settings.paperColor === 'dark-slate';
   const background =
     settings.paperColor === 'cream'
@@ -186,13 +185,13 @@ function mapColors(settings: PrintMenuSettings) {
       ? '#0f172a'
       : '#ffffff';
 
-  const text = isDark ? '#f8fafc' : settings.primaryColor || '#091426';
-  const border = isDark ? '#334155' : '#e2e8f0';
+  const text = isDark ? '#f8fafc' : settings.primaryColor || '#111827';
+  const border = isDark ? '#334155' : '#e5e7eb';
 
   return {
-    primary: settings.primaryColor || '#091426',
-    secondary: settings.secondaryColor || '#64748b',
-    accent: settings.accentColor || '#2170e4',
+    primary: settings.primaryColor || '#1f2937',
+    secondary: settings.secondaryColor || '#0f172a',
+    accent: settings.accentColor || '#f59e0b',
     background,
     text,
     border,
@@ -200,7 +199,40 @@ function mapColors(settings: PrintMenuSettings) {
 }
 
 /**
- * Builds the structured backend payload expected by POST /api/v1/menu/render-pdf
+ * Normalizes layout type to backend-supported values:
+ * 'grid-2col' | 'list-with-photos' | 'compact-price-list'
+ */
+function normalizeLayout(layout?: string): 'grid-2col' | 'list-with-photos' | 'compact-price-list' {
+  if (!layout) return 'list-with-photos';
+  if (layout.includes('grid')) return 'grid-2col';
+  if (layout.includes('compact') || layout.includes('price')) return 'compact-price-list';
+  return 'list-with-photos';
+}
+
+/**
+ * Normalizes density to 'compact' | 'normal' | 'relaxed'
+ */
+function normalizeDensity(density?: string): 'compact' | 'normal' | 'relaxed' {
+  if (density === 'compact' || density === 'relaxed') return density;
+  return 'normal';
+}
+
+/**
+ * Normalizes paper size to backend supported keys:
+ * 'a4' | 'a5' | 'letter' | 'legal' | 'tabloid'
+ */
+function normalizePaperSize(paperSize?: string): 'a4' | 'a5' | 'letter' | 'legal' | 'tabloid' {
+  const lower = (paperSize || 'a4').toLowerCase();
+  if (lower.includes('a5')) return 'a5';
+  if (lower.includes('letter')) return 'letter';
+  if (lower.includes('legal')) return 'legal';
+  if (lower.includes('tabloid')) return 'tabloid';
+  return 'a4';
+}
+
+/**
+ * Builds the top-level structured backend payload as specified in:
+ * POST /api/v1/menu/render-pdf
  */
 export function buildMenuPdfPayload({
   settings,
@@ -220,58 +252,79 @@ export function buildMenuPdfPayload({
       settings,
     });
 
-  // 2. Map categories & items with real names, descriptions, prices, tags
-  const mappedCategories = resolvedCategories.map((cat) => {
+  const allItems: MenuPdfItem[] = [];
+
+  // 2. Map categories & items with real names, descriptions, prices, tags, images
+  const mappedCategories: MenuPdfCategory[] = resolvedCategories.map((cat) => {
     const sectionConf = settings.sectionConfigs?.[cat.id];
-    const layout = sectionConf?.layout || settings.defaultSectionLayout || 'list-with-photos';
-    const showPhotos = sectionConf?.showPhotos !== undefined ? sectionConf.showPhotos : settings.showImages;
+    const rawLayout = sectionConf?.layout || settings.defaultSectionLayout;
+    const layout = normalizeLayout(rawLayout);
+    const density = normalizeDensity(sectionConf?.density);
+    const backgroundTint = (sectionConf?.backgroundTint as 'none' | 'subtle' | 'card') || 'none';
+    const dividerStyle = (sectionConf?.dividerStyle as 'line' | 'dashed' | 'none') || 'line';
+
+    const items: MenuPdfItem[] = cat.items.map((item) => {
+      const imgUrl = item.image || '';
+      const mappedItem: MenuPdfItem = {
+        name: item.name,
+        description: settings.showDescriptions ? item.description : undefined,
+        price: settings.showPrices
+          ? typeof item.price === 'number'
+            ? item.price
+            : parseFloat(String(item.price || 0)) || 0
+          : 0,
+        category: cat.name,
+        isPopular: Boolean(item.isPopular || item.tags?.includes('Popular')),
+        tags: settings.showDietary ? item.tags : [],
+        imageUrl: imgUrl || undefined,
+        photoUrl: imgUrl || undefined,
+        variants: item.variants?.map((v) => ({
+          name: v.name,
+          price: typeof v.price === 'number' ? v.price : parseFloat(String(v.price || 0)) || 0,
+        })),
+      };
+      allItems.push(mappedItem);
+      return mappedItem;
+    });
 
     return {
-      id: cat.id,
       name: cat.name,
-      amharicName: settings.showAmharic ? cat.amName : undefined,
-      description: settings.showCategoryDescriptions ? cat.description : undefined,
       layout,
-      items: cat.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        amharicName: settings.showAmharic ? item.amName : undefined,
-        description: settings.showDescriptions ? item.description : undefined,
-        price: settings.showPrices ? item.price : 0,
-        formattedPrice: formatPrice(item.price, settings.currencySymbol),
-        tags: settings.showDietary ? item.tags : [],
-        image: showPhotos ? item.image : undefined,
-        variants: item.variants,
-      })),
+      backgroundTint,
+      dividerStyle,
+      density,
+      items,
     };
   });
 
-  // 3. Fallback QR code data
-  const qrCodeData = qrUrl || settings.qrCodeData || 'https://restoflow.app/order';
+  // 3. QR code data
+  const qrCodeData = qrUrl || settings.qrCodeData || 'https://restaurant.com/menu';
 
   return {
-    settings: {
-      title: settings.restaurantName || 'Restaurant Menu',
-      subtitle: settings.tagline || settings.subTitle || undefined,
-      paperSize: settings.paperSize || 'a4',
-      orientation: settings.orientation || 'portrait',
-      qrCodeData,
-      branding: {
-        name: settings.restaurantName || 'Restaurant',
-        logoUrl: settings.showLogo ? settings.logoUrl : undefined,
-        phone: settings.phone || undefined,
-        location: settings.address || undefined,
-      },
-      colors: mapColors(settings),
-      fonts: mapFonts(settings.fontFamily, settings.fontSize),
-      margins: {
-        top: 12,
-        right: 12,
-        bottom: 12,
-        left: 12,
-      },
-      categories: mappedCategories,
+    templateId: settings.templateId || 'default-menu',
+    paperSize: normalizePaperSize(settings.paperSize),
+    orientation: settings.orientation === 'landscape' ? 'landscape' : 'portrait',
+    title: settings.restaurantName || 'Restaurant Menu',
+    subtitle: settings.tagline || settings.subTitle || 'Fresh cuisine',
+    branding: {
+      name: settings.restaurantName || 'Restaurant Name',
+      logoUrl: settings.showLogo && settings.logoUrl ? settings.logoUrl : undefined,
+      coverImageUrl: (settings as any).coverImageUrl || undefined,
+      phone: settings.phone || undefined,
+      location: settings.address || undefined,
+      accent: settings.accentColor || '#f59e0b',
     },
+    colors: mapColors(settings),
+    fonts: mapFonts(settings.fontFamily, settings.fontSize),
+    margins: {
+      top: 12,
+      right: 12,
+      bottom: 12,
+      left: 12,
+    },
+    categories: mappedCategories,
+    items: allItems,
+    qrCodeData,
   };
 }
 
@@ -279,92 +332,71 @@ export interface ExportMenuPdfResult {
   blob: Blob;
   blobUrl: string;
   filename: string;
-  source: 'server' | 'client';
+  source: 'server';
 }
 
 /**
  * Sends POST /api/v1/menu/render-pdf, handles errors/timeouts, and triggers browser download
+ * Strictly executes backend PDF rendering.
  */
 export async function exportMenuPdf(options: ExportMenuPdfOptions): Promise<ExportMenuPdfResult> {
   const payload = buildMenuPdfPayload(options);
-  const endpoint = getRenderPdfEndpoint();
-  const token = getAuthToken();
+  let blob: Blob | null = null;
 
-  // Log endpoint and payload for debugging in browser console
-  try {
-    // eslint-disable-next-line no-console
-    console.log('exportMenuPdf: endpoint', endpoint);
-    // eslint-disable-next-line no-console
-    console.log('exportMenuPdf: payload', payload);
-  } catch (e) {
-    // ignore logging errors
-  }
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/pdf',
+  // Primary execution: Attempt sending payload via menuQueries renderMenuPdf
+  const sendRequest = async (body: any) => {
+    return await renderMenuPdf(body);
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  let response: Response;
   try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      credentials: 'include', // Ensures HttpOnly auth cookies are sent
-      body: JSON.stringify(payload),
-    });
-  } catch (networkError: any) {
-    throw new RenderPdfError(
-      0,
-      networkError?.message || 'Network error: Failed to connect to PDF render service.',
-      'NETWORK_ERROR'
-    );
-  }
+    // 1. Send top-level payload (Standard schema in summary)
+    blob = await sendRequest(payload);
+  } catch (primaryErr: any) {
+    // If backend reports 400 "Invalid settings payload", try wrapping in { settings: payload }
+    let serverMsg = primaryErr?.message;
+    let serverCode = primaryErr?.code;
+    let status = primaryErr?.response?.status;
 
-  if (!response.ok) {
-    let errorData: { message?: string; code?: string } = {};
-    try {
-      errorData = await response.json();
-    } catch {
-      // Body may not be valid JSON
+    if (primaryErr?.response?.data instanceof Blob) {
+      try {
+        const text = await primaryErr.response.data.text();
+        const parsed = JSON.parse(text);
+        if (parsed.error) serverMsg = parsed.error;
+        if (parsed.message) serverMsg = parsed.message;
+        if (parsed.code) serverCode = parsed.code;
+      } catch {
+        // ignore
+      }
     }
 
-    if (response.status === 504) {
+    if (status === 400 && typeof serverMsg === 'string' && serverMsg.toLowerCase().includes('settings')) {
+      try {
+        blob = await sendRequest({ settings: payload });
+      } catch (retryErr: any) {
+        throw new RenderPdfError(400, 'Invalid menu configuration: ' + (retryErr?.message || serverMsg), 'BAD_REQUEST');
+      }
+    } else if (status === 504 || primaryErr.code === 'ECONNABORTED') {
       throw new RenderPdfError(
         504,
-        errorData.message || 'Rendering timed out — try again or reduce content size.',
-        errorData.code || 'TIMEOUT'
+        'PDF render timed out while generating menu preview. Try reducing menu items or content size.',
+        'TIMEOUT'
       );
-    }
-
-    if (response.status === 400) {
+    } else if (status === 400) {
+      throw new RenderPdfError(400, serverMsg || 'Invalid menu data payload.', serverCode || 'BAD_REQUEST');
+    } else if (status === 401 || status === 403) {
+      throw new RenderPdfError(status, serverMsg || 'Authentication required by server.', 'UNAUTHORIZED');
+    } else {
       throw new RenderPdfError(
-        400,
-        errorData.message || 'Invalid menu configuration or payload parameters.',
-        errorData.code || 'BAD_REQUEST'
+        status || 500,
+        serverMsg || 'Backend PDF rendering failed. Please check backend server status.',
+        serverCode || 'SERVER_ERROR'
       );
     }
-
-    if (response.status === 401 || response.status === 403) {
-      throw new RenderPdfError(
-        response.status,
-        errorData.message || 'Authentication required to render menu PDF.',
-        errorData.code || 'UNAUTHORIZED'
-      );
-    }
-
-    throw new RenderPdfError(
-      response.status,
-      errorData.message || `PDF render failed with HTTP status ${response.status}`,
-      errorData.code || 'SERVER_ERROR'
-    );
   }
 
-  const blob = await response.blob();
+  if (!blob) {
+    throw new RenderPdfError(500, 'Backend PDF render service returned an empty file.');
+  }
 
   // Trigger browser download
   const safeName = (options.settings.restaurantName || 'restaurant')
@@ -418,3 +450,4 @@ export function useExportMenuPdf() {
     error,
   };
 }
+

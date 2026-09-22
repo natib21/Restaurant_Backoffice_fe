@@ -165,6 +165,7 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: false, reviewerRole: null },
       web: { requiresReview: true, reviewerRole: 'waiter' },
+      qr: { requiresReview: true, reviewerRole: 'waiter' },
       admin: { requiresReview: true, reviewerRole: 'support' },
       telegram: { requiresReview: true, reviewerRole: 'support' },
     });
@@ -173,6 +174,7 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: false, reviewerRole: null },
       web: { requiresReview: false, reviewerRole: null },
+      qr: { requiresReview: false, reviewerRole: null },
       admin: { requiresReview: false, reviewerRole: null },
       telegram: { requiresReview: false, reviewerRole: null },
     });
@@ -181,6 +183,7 @@ const applyPreset = (preset: 'standard' | 'automated' | 'strict') => {
     setChannelsState({
       waiter: { requiresReview: true, reviewerRole: 'waiter' },
       web: { requiresReview: true, reviewerRole: 'waiter' },
+      qr: { requiresReview: true, reviewerRole: 'waiter' },
       admin: { requiresReview: true, reviewerRole: 'support' },
       telegram: { requiresReview: true, reviewerRole: 'support' },
     });

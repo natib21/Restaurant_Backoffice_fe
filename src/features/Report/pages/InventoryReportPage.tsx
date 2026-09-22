@@ -194,6 +194,17 @@ const InventoryReportPage: React.FC = () => {
     { key: 'month', label: 'This Month', count: movements.filter(monthMatcher).length, icon: <Calendar className="h-3.5 w-3.5" />, matcher: monthMatcher },
   ];
 
+  const getIngredientName = (ing: any): string => {
+    if (!ing) return 'N/A';
+    if (typeof ing === 'string') return ing;
+    return ing.name || 'N/A';
+  };
+
+  const getIngredientUnit = (ing: any): string => {
+    if (!ing || typeof ing === 'string') return '';
+    return ing.unit || '';
+  };
+
   const filterFields: AdvancedFilterField[] = [
     {
       id: 'type', label: 'Movement Type', type: 'multi-select',
@@ -211,7 +222,7 @@ const InventoryReportPage: React.FC = () => {
 
   const groupByOptions: GroupByOption<StockMovement>[] = [
     { id: 'type', label: 'By Movement Type', accessor: (m) => m.type || 'N/A', icon: <SlidersHorizontal className="h-3.5 w-3.5" /> },
-    { id: 'ingredient', label: 'By Ingredient', accessor: (m) => m.ingredient?.name || 'N/A', icon: <Package className="h-3.5 w-3.5" /> },
+    { id: 'ingredient', label: 'By Ingredient', accessor: (m) => getIngredientName(m.ingredient), icon: <Package className="h-3.5 w-3.5" /> },
     { id: 'day', label: 'By Day', accessor: (m) => format(new Date(m.createdAt), 'EEEE, MMM d'), icon: <Calendar className="h-3.5 w-3.5" /> },
     { id: 'createdBy', label: 'By User', accessor: (m) => m.createdBy || 'N/A', icon: <Tag className="h-3.5 w-3.5" /> },
   ];
@@ -276,10 +287,10 @@ const InventoryReportPage: React.FC = () => {
         const rows = selectedRows.map((m) =>
           [
             format(new Date(m.createdAt), 'yyyy-MM-dd HH:mm'),
-            m.ingredient?.name || '',
+            getIngredientName(m.ingredient),
             m.type,
             m.quantity,
-            m.ingredient?.unit || '',
+            getIngredientUnit(m.ingredient),
             (m.costPerUnit || 0).toFixed(2),
             (m.movementValue || 0).toFixed(2),
             m.balance,
@@ -340,7 +351,7 @@ const InventoryReportPage: React.FC = () => {
             <Package className="h-4 w-4" />
           </div>
           <div>
-            <p className="font-semibold text-xs text-slate-800 dark:text-slate-200">{m.ingredient?.name || 'N/A'}</p>
+            <p className="font-semibold text-xs text-slate-800 dark:text-slate-200">{getIngredientName(m.ingredient)}</p>
             <p className="text-[10px] text-slate-500">{m.reference || m.createdBy || 'N/A'}</p>
           </div>
         </div>
@@ -360,7 +371,7 @@ const InventoryReportPage: React.FC = () => {
             isPositive ? 'text-emerald-700 dark:text-emerald-400' :
             'text-blue-700 dark:text-blue-400'
           }`}>
-            {isPositive ? '+' : ''}{m.quantity} <span className="font-normal text-[10px] text-slate-500">{m.ingredient?.unit || ''}</span>
+            {isPositive ? '+' : ''}{m.quantity} <span className="font-normal text-[10px] text-slate-500">{getIngredientUnit(m.ingredient)}</span>
           </div>
         );
       },
@@ -388,7 +399,7 @@ const InventoryReportPage: React.FC = () => {
       id: 'balance', header: 'Balance', sortable: true,
       cell: (m) => (
         <Badge variant="outline" className="font-mono text-[10px] font-bold">
-          {m.balance} {m.ingredient?.unit || ''}
+          {m.balance} {getIngredientUnit(m.ingredient)}
         </Badge>
       ),
     },

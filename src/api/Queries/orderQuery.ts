@@ -183,7 +183,7 @@ const orderKeys = {
 const fetchActiveOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
-  const { data } = await api.get('/v1/orders/active', { params });
+  const { data } = await api.get('/v1/order/active', { params });
   return parseOrdersResponse(data);
 };
 
@@ -191,20 +191,20 @@ const fetchAllOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
   try {
-    const { data } = await api.get('/v1/orders', { params });
+    const { data } = await api.get('/v1/order', { params });
     const parsed = parseOrdersResponse(data);
     if (parsed.orders && parsed.orders.length > 0) {
       return parsed;
     }
   } catch (err: any) {
-    console.debug('Direct /v1/orders query fallback', err);
+    console.debug('Direct /v1/order query fallback', err);
   }
 
   // Fallback / Aggregation: Query both active and completed orders to guarantee all statuses are fetched
   try {
     const [activeRes, completedRes] = await Promise.allSettled([
-      api.get('/v1/orders/active', { params }),
-      api.get('/v1/orders/completed', { params }),
+      api.get('/v1/order/active', { params }),
+      api.get('/v1/order/completed', { params }),
     ]);
 
     const activeOrders: Order[] =
@@ -231,7 +231,7 @@ const fetchAllOrdersResponse = async (
       count: allOrders.length,
     };
   } catch (fallbackError) {
-    const { data } = await api.get('/v1/orders/active', { params });
+    const { data } = await api.get('/v1/order/active', { params });
     return parseOrdersResponse(data);
   }
 };
@@ -267,7 +267,7 @@ const fetchStatusOrders = async (
   status: string,
   params?: Record<string, any>
 ): Promise<Order[]> => {
-  const { data } = await api.get(`/v1/orders/${status}`, { params });
+  const { data } = await api.get(`/v1/order/${status}`, { params });
   return data.data?.orders ?? data.orders ?? [];
 };
 
@@ -277,7 +277,7 @@ const fetchCompletedOrders = async (
   orders: Order[];
   summary: OrdersSummary;
 }> => {
-  const { data } = await api.get('/v1/orders/completed', { params });
+  const { data } = await api.get('/v1/order/completed', { params });
   return {
     orders: data.data?.orders ?? data.orders ?? [],
     summary: data.summary ?? data.data?.summary ?? {
@@ -291,12 +291,12 @@ const fetchCompletedOrders = async (
 
 const fetchOrderByNumber = async (orderNumber: string): Promise<Order> => {
   const cleanNumber = orderNumber.replace(/^#/, '');
-  const { data } = await api.get(`/v1/orders/number/${cleanNumber}`);
+  const { data } = await api.get(`/v1/order/number/${cleanNumber}`);
   return parseOrder(data);
 };
 
 const fetchOrderById = async (orderId: string): Promise<Order> => {
-  const { data } = await api.get(`/v1/orders/${orderId}`);
+  const { data } = await api.get(`/v1/order/${orderId}`);
   return parseOrder(data);
 };
 
@@ -313,7 +313,7 @@ const updateOrderStatus = async ({
   assignedWaiter?: string;
   assignedKitchenStaff?: string;
 }): Promise<Order> => {
-  const { data } = await api.patch(`/v1/orders/${orderId}/status`, {
+  const { data } = await api.patch(`/v1/order/${orderId}/status`, {
     status,
     reason,
     assignedWaiter,
@@ -329,7 +329,7 @@ const cancelOrder = async ({
   orderId: string;
   reason?: string;
 }): Promise<Order> => {
-  const { data } = await api.patch(`/v1/orders/${orderId}/cancel`, { reason });
+  const { data } = await api.patch(`/v1/order/${orderId}/cancel`, { reason });
   return parseOrder(data);
 };
 
@@ -340,15 +340,43 @@ const markOrderAsPaid = async ({
   orderId: string;
   data: FormData;
 }): Promise<Order> => {
-  const response = await api.post(`/v1/orders/${orderId}/pay`, data);
+  const response = await api.post(`/v1/order/${orderId}/pay`, data);
   return parseOrder(response.data);
 };
 
 const createStaffOrder = async (
   payload: StaffCreateOrderPayload
 ): Promise<Order> => {
-  const { data } = await api.post('/v1/orders/staff', payload);
-  return parseOrder(data);
+  // Try primary verified endpoint /v1/orders/staff-place-order
+  // Fields match StaffPlaceOrderRequest specification: menuItemId, branchId, tableId, orderType, customerName
+  try {
+    const formattedPayload = {
+      items: payload.items.map((it) => ({
+        menuItemId: it.menuItemId,
+        quantity: it.quantity,
+      })),
+      tableId: payload.tableId || undefined,
+      orderType: payload.orderType || 'dine_in',
+      customerName: payload.customerName || 'Walk-in Customer',
+      customerPhone: payload.customerPhone || undefined,
+      branchId: payload.branchId || undefined,
+      deliveryFee: payload.deliveryFee,
+      deliveryNotes: payload.deliveryAddress,
+      performedBy: (payload as any).performedBy,
+      performedByName: (payload as any).performedByName,
+      source: (payload as any).source || 'waiter',
+      notes: (payload as any).notes,
+    };
+    const { data } = await api.post('/v1/orders/staff-place-order', formattedPayload);
+    return parseOrder(data.data || data);
+  } catch (err: any) {
+    // If staff-place-order returns 404, fall back to legacy /v1/order/staff
+    if (err?.response?.status === 404) {
+      const { data } = await api.post('/v1/order/staff', payload);
+      return parseOrder(data);
+    }
+    throw err;
+  }
 };
 
 // Kitchen / KDS API functions
@@ -388,12 +416,12 @@ const updateKitchenTicketStatus = async ({
 // -------- CUSTOMER --------
 
 const fetchMyActiveOrder = async (): Promise<Order | null> => {
-  const { data } = await api.get('/v1/orders/my-active');
+  const { data } = await api.get('/v1/order/my-active');
   return data.data?.order ?? null;
 };
 
 const fetchMyOrderHistory = async (): Promise<Order[]> => {
-  const { data } = await api.get('/v1/orders/my-history');
+  const { data } = await api.get('/v1/order/my-history');
   return data.data?.orders ?? [];
 };
 
@@ -547,6 +575,11 @@ export const useCreateStaffOrderMutation = () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.active() });
       queryClient.invalidateQueries({ queryKey: orderKeys.pending() });
+      // Invalidate inventory state because order placement automatically deducts stock
+      queryClient.invalidateQueries({ queryKey: ['ingredientsList'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryValuation'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to place order');
@@ -642,7 +675,7 @@ export const useAddItemsToOrderMutation = () => {
         quantity: i.quantity,
         notes: i.notes || i.specialInstructions || '',
       }));
-      const { data } = await api.patch(`/v1/orders/${orderId}/add-items`, { items: formattedItems });
+      const { data } = await api.patch(`/v1/order/${orderId}/add-items`, { items: formattedItems });
       return data.data?.order || data.order;
     },
     onSuccess: (order) => {
@@ -725,7 +758,7 @@ export const useUpdateOrderItemStatusMutation = () => {
   >({
     mutationFn: async ({ orderId, itemId, status }) => {
       const { data } = await api.patch(
-        `/v1/orders/${orderId}/items/${itemId}/status`,
+        `/v1/order/${orderId}/items/${itemId}/status`,
         { status }
       );
       return data.data || data;
@@ -761,7 +794,7 @@ export const useBulkServeReadyItemsMutation = () => {
   >({
     mutationFn: async ({ orderId }) => {
       const { data } = await api.post(
-        `/v1/orders/${orderId}/items/serve-ready`
+        `/v1/order/${orderId}/items/serve-ready`
       );
       return data.data || data;
     },
@@ -798,11 +831,24 @@ export const useVoidOrderItemMutation = () => {
     }
   >({
     mutationFn: async ({ orderId, itemId, reason, createReplacement }) => {
-      const { data } = await api.patch(
-        `/v1/orders/${orderId}/items/${itemId}/void`,
-        { reason, createReplacement: !!createReplacement }
-      );
-      return data.data || data;
+      // Try verified backend endpoint: POST /api/v1/orders/:orderId/items/:itemId/void
+      try {
+        const { data } = await api.post(
+          `/v1/orders/${orderId}/items/${itemId}/void`,
+          { reason, createReplacement: !!createReplacement }
+        );
+        return data.data || data;
+      } catch (err: any) {
+        // Fallback to PATCH /v1/order/:orderId/items/:itemId/void if 404
+        if (err?.response?.status === 404) {
+          const { data } = await api.patch(
+            `/v1/order/${orderId}/items/${itemId}/void`,
+            { reason, createReplacement: !!createReplacement }
+          );
+          return data.data || data;
+        }
+        throw err;
+      }
     },
     onSuccess: (data, variables) => {
       if (data?.replacementItem || variables.createReplacement) {
@@ -814,6 +860,11 @@ export const useVoidOrderItemMutation = () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.active() });
       queryClient.invalidateQueries({ queryKey: orderKeys.byId(variables.orderId) });
       queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+      // Item void automatically restores stock on the backend! Invalidate inventory:
+      queryClient.invalidateQueries({ queryKey: ['ingredientsList'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryValuation'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
     onError: (error) => {
       toast.error(

@@ -708,10 +708,10 @@ const BranchManagementPage = () => {
         {(panelMode === 'edit' || panelMode === 'add') && (
           <BranchFormPage
             initialData={panelMode === 'edit' ? selectedBranch : undefined}
-            onSuccess={() => {
-              toast.success(
-                panelMode === 'add' ? 'New branch registered' : 'Branch updated'
-              );
+            onSuccess={(branch) => {
+              if (branch) {
+                setSelectedBranch(branch);
+              }
               closePanel();
             }}
             onCancel={closePanel}

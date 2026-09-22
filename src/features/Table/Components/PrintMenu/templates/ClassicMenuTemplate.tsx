@@ -7,6 +7,7 @@ import type { Category } from '@/api/Queries/categoryQueries';
 import type { Merchant } from '@/api/Queries/merchantQueries';
 import type { PrintMenuSettings } from '../types';
 import { filterAndGroupMenuData, getTableScanUrl, type ProcessedCategory } from '../utils/templateUtils';
+import { DynamicSectionRenderer } from './DynamicSectionRenderer';
 
 export interface ClassicMenuTemplateProps {
   table: Table;
@@ -157,14 +158,14 @@ export const ClassicMenuTemplate: React.FC<ClassicMenuTemplateProps> = ({
             {/* Column 1 */}
             <div className="flex flex-col gap-6">
               {col1Categories.map((category) => (
-                <ClassicCategorySection
+                <DynamicSectionRenderer
                   key={category.id}
                   category={category}
                   settings={settings}
-                  primaryColor={primaryColor}
-                  secondaryColor={secondaryColor}
+                  primaryTextColor={primaryColor}
+                  secondaryTextColor={secondaryColor}
+                  borderColor={borderRuleColor}
                   accentColor={accentColor}
-                  borderRuleColor={borderRuleColor}
                 />
               ))}
             </div>
@@ -172,14 +173,14 @@ export const ClassicMenuTemplate: React.FC<ClassicMenuTemplateProps> = ({
             {/* Column 2 */}
             <div className="flex flex-col gap-6">
               {col2Categories.map((category) => (
-                <ClassicCategorySection
+                <DynamicSectionRenderer
                   key={category.id}
                   category={category}
                   settings={settings}
-                  primaryColor={primaryColor}
-                  secondaryColor={secondaryColor}
+                  primaryTextColor={primaryColor}
+                  secondaryTextColor={secondaryColor}
+                  borderColor={borderRuleColor}
                   accentColor={accentColor}
-                  borderRuleColor={borderRuleColor}
                 />
               ))}
             </div>

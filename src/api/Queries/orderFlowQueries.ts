@@ -8,7 +8,7 @@ import type { AxiosError } from 'axios';
 // Types
 // ============================================================
 
-export type ChannelName = 'waiter' | 'web' | 'admin' | 'telegram';
+export type ChannelName = 'waiter' | 'web' | 'admin' | 'telegram' | 'qr';
 
 export type ReviewerRole = 'waiter' | 'support' | null;
 
@@ -25,6 +25,7 @@ export interface OrderFlowConfig {
     web: ChannelConfig;
     admin: ChannelConfig;
     telegram: ChannelConfig;
+    qr: ChannelConfig;
   };
   createdAt?: string;
   updatedAt?: string;
@@ -36,6 +37,7 @@ export interface UpdateChannelConfigRequest {
     web: ChannelConfig;
     admin: ChannelConfig;
     telegram: ChannelConfig;
+    qr: ChannelConfig;
   }>;
 }
 
@@ -108,6 +110,10 @@ export const DEFAULT_ORDER_FLOW_CONFIG: OrderFlowConfig = {
     telegram: {
       requiresReview: true,
       reviewerRole: 'support',
+    },
+    qr: {
+      requiresReview: false,
+      reviewerRole: 'waiter',
     },
   },
 };

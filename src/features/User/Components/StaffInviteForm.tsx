@@ -39,8 +39,10 @@ import {
   useUpdateStaffMemberMutation,
   useMerchantRolesQuery,
 } from '../../../api/Queries/merchantQueries';
-import { useBranchesQuery } from '@/api/Queries/branchQueries';
-import { useAssignUserBranchesMutation } from '@/api/Queries/userBranchQueries';
+import {
+  useBranchesQuery,
+  useAssignUserBranchesMutation,
+} from '@/api/Queries/branchQueries';
 import { staffFormSchema, type StaffFormValues } from '../lib/StaffSchemas';
 import { useTranslation } from '@/locales/i18n';
 import { Badge } from '@/components/ui/badge';

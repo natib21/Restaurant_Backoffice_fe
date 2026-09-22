@@ -121,13 +121,17 @@
   }
 
   /* Hide app shell and navigation elements */
-  nav, header, aside, button, .print\\:hidden, [data-radix-collection-item], [role="tablist"] {
+  nav, header, aside, button, .print\:hidden, .no-print, [data-radix-collection-item], [role="tablist"] {
     display: none !important;
   }
 
-  /* Hide everything except print containers */
-  body > *:not([data-radix-portal]) {
-    display: none !important;
+  /* Ensure root container allows print content through */
+  #root {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
   }
 
   [data-radix-portal] {
@@ -155,12 +159,13 @@
   }
 
   #printable-menu-root {
+    display: block !important;
     position: static !important;
     width: 100% !important;
     height: auto !important;
     max-width: 100% !important;
     transform: none !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;

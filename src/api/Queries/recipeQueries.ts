@@ -3,24 +3,27 @@ import { api } from '@/lib/api';
 
 // Recipe Types
 export interface RecipeItem {
-  ingredient: string; // Ingredient _id
+  ingredientName?: string; // ⚠️ STRING, required by backend
+  ingredient?: string; // Ingredient _id for backward compatibility
   quantity: number;
-  unit: 'kg' | 'g' | 'liter' | 'ml' | 'pieces' | 'boxes' | 'cans';
+  unit: string;
 }
 
 export interface RecipeItemDetail {
-  ingredient: {
-    _id: string;
-    name: string;
-    currentStock: number;
-    unit: string;
-  };
+  ingredient?: {
+    _id?: string;
+    name?: string;
+    currentStock?: number;
+    unit?: string;
+  } | string;
+  ingredientName?: string;
   quantity: number;
   unit: string;
 }
 
 export interface RecipeCreateRequest {
-  menuItem: string; // Menu _id (unique per merchant)
+  menuItem?: string; // Menu _id
+  menuItemId?: string; // Menu _id (as per guide)
   name: string;
   yield: number; // Servings this recipe produces
   items: RecipeItem[];
@@ -36,9 +39,9 @@ export interface Recipe {
   name: string;
   yield: number;
   items: RecipeItemDetail[];
-  totalCost: number; // Auto-calculated
-  costPerServing: number; // totalCost / yield
-  merchant: string;
+  totalCost?: number; // Auto-calculated
+  costPerServing?: number; // totalCost / yield
+  merchant?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -46,19 +49,28 @@ export interface Recipe {
 
 export interface RecipeListResponse {
   status: string;
-  results: number;
+  results?: number;
   data: {
     recipes: Recipe[];
   };
 }
 
 // List all recipes
-export const useGetRecipesList = () => {
+export const useGetRecipesList = (merchantId?: string) => {
   return useQuery<RecipeListResponse>({
-    queryKey: ['recipesList'],
+    queryKey: ['recipesList', merchantId],
     queryFn: async () => {
-      const response = await api.get('/v1/recipes');
-      return response.data;
+      const params = merchantId ? { merchantId } : undefined;
+      try {
+        const response = await api.get('/v1/inventory/recipes', { params });
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const fallback = await api.get('/v1/recipes', { params });
+          return fallback.data;
+        }
+        throw err;
+      }
     },
   });
 };
@@ -69,8 +81,16 @@ export const useGetRecipeDetails = (recipeId?: string) => {
     queryKey: ['recipeDetails', recipeId],
     queryFn: async () => {
       if (!recipeId) throw new Error('Recipe ID is required');
-      const response = await api.get(`/v1/recipes/${recipeId}`);
-      return response.data;
+      try {
+        const response = await api.get(`/v1/inventory/recipes/${recipeId}`);
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const fallback = await api.get(`/v1/recipes/${recipeId}`);
+          return fallback.data;
+        }
+        throw err;
+      }
     },
     enabled: !!recipeId,
   });
@@ -82,8 +102,16 @@ export const useCreateRecipe = () => {
 
   return useMutation({
     mutationFn: async (data: RecipeCreateRequest) => {
-      const response = await api.post('/v1/recipes', data);
-      return response.data;
+      try {
+        const response = await api.post('/v1/inventory/recipes', data);
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const fallback = await api.post('/v1/recipes', data);
+          return fallback.data;
+        }
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipesList'] });
@@ -97,8 +125,16 @@ export const useUpdateRecipe = () => {
 
   return useMutation({
     mutationFn: async ({ recipeId, data }: { recipeId: string; data: Partial<RecipeCreateRequest> }) => {
-      const response = await api.patch(`/v1/recipes/${recipeId}`, data);
-      return response.data;
+      try {
+        const response = await api.put(`/v1/inventory/recipes/${recipeId}`, data);
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const fallback = await api.patch(`/v1/recipes/${recipeId}`, data);
+          return fallback.data;
+        }
+        throw err;
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['recipeDetails', variables.recipeId] });
@@ -113,8 +149,16 @@ export const useDeleteRecipe = () => {
 
   return useMutation({
     mutationFn: async (recipeId: string) => {
-      const response = await api.delete(`/v1/recipes/${recipeId}`);
-      return response.data;
+      try {
+        const response = await api.delete(`/v1/inventory/recipes/${recipeId}`);
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const fallback = await api.delete(`/v1/recipes/${recipeId}`);
+          return fallback.data;
+        }
+        throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipesList'] });

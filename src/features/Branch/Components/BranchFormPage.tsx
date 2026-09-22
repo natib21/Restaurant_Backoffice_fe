@@ -52,7 +52,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface BranchFormPageProps {
   initialData?: any;
-  onSuccess: () => void;
+  onSuccess: (createdBranch?: any) => void;
   onCancel: () => void;
 }
 
@@ -122,15 +122,17 @@ const BranchFormPage: React.FC<BranchFormPageProps> = ({
         },
       };
       console.log('Payload ' + payload);
+      let resultBranch: any;
       if (isEdit) {
-        await updateMutation.mutateAsync({
+        resultBranch = await updateMutation.mutateAsync({
           id: initialData._id,
           input: payload,
         });
       } else {
-        await createMutation.mutateAsync(payload);
+        const createRes = await createMutation.mutateAsync(payload);
+        resultBranch = createRes.branch || createRes;
       }
-      onSuccess();
+      onSuccess(resultBranch);
     } catch (err: any) {
       toast.error(err.message || 'An error occurred');
     }

@@ -143,6 +143,13 @@ const RecipesPage: React.FC = () => {
           unit: ing.unit || 'unit',
         });
       }
+      if (ing.name) {
+        map.set(ing.name, {
+          cost: ing.costPerUnit || 0,
+          name: ing.name || 'Ingredient',
+          unit: ing.unit || 'unit',
+        });
+      }
     });
     return map;
   }, [ingredients]);
@@ -170,8 +177,10 @@ const RecipesPage: React.FC = () => {
         !q ||
         recipeName.includes(q) ||
         menuItemName.includes(q) ||
-        r.items?.some((it) => {
-          const ingName = typeof it.ingredient === 'object' && it.ingredient?.name ? it.ingredient.name : '';
+        r.items?.some((it: any) => {
+          const ingName =
+            it.ingredientName ||
+            (typeof it.ingredient === 'object' && it.ingredient?.name ? it.ingredient.name : '');
           return ingName.toLowerCase().includes(q);
         });
 
@@ -297,18 +306,27 @@ const RecipesPage: React.FC = () => {
   const openEditDialog = (recipe: Recipe) => {
     setDialogMode('edit');
     setEditingRecipe(recipe);
-    setFormMenuItem(recipe.menuItem?._id || '');
+    setFormMenuItem(recipe.menuItem?._id || (recipe as any).menuItemId || '');
     setFormName(getLocalizedText(recipe.name, 'en', typeof recipe.name === 'string' ? recipe.name : ''));
     setFormYield(recipe.yield || 1);
     setFormIsActive(recipe.isActive ?? true);
     setFormItems(
       (recipe.items?.length
-        ? recipe.items.map((it) => ({
-            id: Math.random().toString(36).substring(2, 9),
-            ingredient: typeof it.ingredient === 'string' ? it.ingredient : it.ingredient?._id || '',
-            quantity: it.quantity || 0,
-            unit: (it.unit as UnitType) || 'kg',
-          }))
+        ? recipe.items.map((it: any) => {
+            const ingId =
+              typeof it.ingredient === 'string'
+                ? it.ingredient
+                : it.ingredient?._id || '';
+            const matchedIng = ingredients.find(
+              (i) => i._id === ingId || (it.ingredientName && i.name === it.ingredientName)
+            );
+            return {
+              id: Math.random().toString(36).substring(2, 9),
+              ingredient: matchedIng ? matchedIng._id : (ingId || it.ingredientName || ''),
+              quantity: it.quantity || 0,
+              unit: (it.unit as UnitType) || (matchedIng?.unit as UnitType) || 'kg',
+            };
+          })
         : [createEmptyItem()]
       ) as RecipeFormItem[]
     );
@@ -335,7 +353,7 @@ const RecipesPage: React.FC = () => {
           const updated = { ...it, [field]: value };
           // If ingredient changed, auto-sync unit if available
           if (field === 'ingredient' && value) {
-            const ing = ingredients.find((i) => i._id === value);
+            const ing = ingredients.find((i) => i._id === value || i.name === value);
             if (ing && ing.unit) {
               updated.unit = ing.unit as UnitType;
             }
@@ -353,14 +371,20 @@ const RecipesPage: React.FC = () => {
     }
     const items: RecipeItem[] = formItems
       .filter((it) => it.ingredient && it.quantity > 0)
-      .map((it) => ({
-        ingredient: it.ingredient,
-        quantity: Number(it.quantity),
-        unit: it.unit,
-      }));
+      .map((it) => {
+        const ing = ingredients.find((i) => i._id === it.ingredient || i.name === it.ingredient);
+        const ingName = ing ? ing.name : it.ingredient;
+        return {
+          ingredientName: ingName, // ⚠️ STRING, required by backend
+          ingredient: it.ingredient, // Keep for compatibility
+          quantity: Number(it.quantity),
+          unit: it.unit || (ing?.unit as UnitType) || 'kg',
+        };
+      });
     if (items.length === 0) return null;
     return {
       menuItem: formMenuItem,
+      menuItemId: formMenuItem,
       name: formName.trim(),
       yield: Number(formYield),
       items,
@@ -526,11 +550,16 @@ const RecipesPage: React.FC = () => {
                     Ingredients List ({items.length})
                   </p>
                   <div className="max-h-48 overflow-y-auto space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800">
-                    {items.map((it, idx) => {
+                    {items.map((it: any, idx) => {
                       const ingName =
-                        typeof it.ingredient === 'object' && it.ingredient?.name
+                        it.ingredientName ||
+                        (typeof it.ingredient === 'object' && it.ingredient?.name
                           ? it.ingredient.name
-                          : 'Ingredient';
+                          : typeof it.ingredient === 'string' && ingredientCostMap.get(it.ingredient)
+                          ? ingredientCostMap.get(it.ingredient)?.name
+                          : typeof it.ingredient === 'string'
+                          ? it.ingredient
+                          : 'Ingredient');
                       return (
                         <div key={idx} className="flex justify-between pt-1 text-[11px]">
                           <span className="text-slate-700 dark:text-slate-300">{ingName}</span>

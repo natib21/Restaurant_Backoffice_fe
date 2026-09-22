@@ -1,5 +1,8 @@
 // src/features/Inventory/pages/IngredientsPage.tsx
 import React, { useState, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/app/store';
+import { useBranchesQuery, type Branch } from '@/api/Queries/branchQueries';
 import {
   useGetIngredientsList,
   useCreateIngredient,
@@ -116,7 +119,13 @@ const IngredientsPage: React.FC = () => {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [thresholdForm, setThresholdForm] = useState({ minStock: 0, maxStock: 0 });
 
-  const { data, isLoading, error } = useGetIngredientsList();
+  const currentBranchId = useSelector((state: RootState) => (state as any).ui?.currentBranchId);
+  const { data: branchesData } = useBranchesQuery();
+  const branches: Branch[] = branchesData || [];
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const effectiveBranchId = selectedBranchId || currentBranchId || (branches[0]?._id ?? '');
+
+  const { data, isLoading, error } = useGetIngredientsList(effectiveBranchId);
   const { data: suppliersData } = useGetSuppliersList();
   const createMutation = useCreateIngredient();
   const updateMutation = useUpdateIngredient();
@@ -127,6 +136,18 @@ const IngredientsPage: React.FC = () => {
   const suppliers = suppliersData?.data?.suppliers || [];
 
   // Helper functions
+  const getSupplierName = (supplier?: { _id: string; name: string } | string): string => {
+    if (!supplier) return '';
+    if (typeof supplier === 'string') return supplier;
+    return supplier.name || '';
+  };
+
+  const getSupplierId = (supplier?: { _id: string; name: string } | string): string => {
+    if (!supplier) return '';
+    if (typeof supplier === 'string') return supplier;
+    return supplier._id || '';
+  };
+
   const isExpiringSoon = (dateStr?: string, days = 14) => {
     if (!dateStr) return false;
     const today = new Date();
@@ -142,7 +163,7 @@ const IngredientsPage: React.FC = () => {
     return new Date(dateStr) < new Date();
   };
 
-  const getStockLevelColor = (status: string) => {
+  const getStockLevelColor = (status?: string) => {
     switch (status) {
       case 'in_stock':
         return 'bg-emerald-500';
@@ -156,8 +177,9 @@ const IngredientsPage: React.FC = () => {
   };
 
   const getStockLevelPercent = (ing: Ingredient) => {
-    if (ing.maxStock <= 0) return ing.currentStock > 0 ? 50 : 0;
-    return Math.min(100, Math.max(0, (ing.currentStock / ing.maxStock) * 100));
+    const max = ing.maxStock ?? (ing.minStock * 2 || 100);
+    if (max <= 0) return ing.currentStock > 0 ? 50 : 0;
+    return Math.min(100, Math.max(0, (ing.currentStock / max) * 100));
   };
 
   // Summary counts for quick filters and cards
@@ -204,9 +226,9 @@ const IngredientsPage: React.FC = () => {
       unit: ingredient.unit,
       currentStock: ingredient.currentStock,
       minStock: ingredient.minStock,
-      maxStock: ingredient.maxStock,
+      maxStock: ingredient.maxStock ?? 0,
       costPerUnit: ingredient.costPerUnit,
-      supplier: ingredient.supplier?._id || '',
+      supplier: getSupplierId(ingredient.supplier),
       expiryDate: ingredient.expiryDate ? ingredient.expiryDate.split('T')[0] : '',
     });
     setDialogOpen(true);
@@ -216,7 +238,7 @@ const IngredientsPage: React.FC = () => {
     setThresholdIngredient(ingredient);
     setThresholdForm({
       minStock: ingredient.minStock,
-      maxStock: ingredient.maxStock,
+      maxStock: ingredient.maxStock ?? 0,
     });
     setThresholdDialogOpen(true);
   };
@@ -226,20 +248,22 @@ const IngredientsPage: React.FC = () => {
       toast.error('Ingredient name is required');
       return;
     }
-    if (!form.supplier) {
+    if (suppliers.length > 0 && !form.supplier) {
       toast.error('Please select a supplier');
       return;
     }
 
     const payload: IngredientCreateRequest = {
-      name: form.name,
+      name: form.name.trim(),
       category: form.category,
       unit: form.unit,
-      currentStock: Number(form.currentStock),
-      minStock: Number(form.minStock),
-      maxStock: Number(form.maxStock),
-      costPerUnit: Number(form.costPerUnit),
-      supplier: form.supplier,
+      currentStock: Number(form.currentStock) || 0,
+      minStock: Number(form.minStock) || 0,
+      maxStock: Number(form.maxStock) || 0,
+      costPerUnit: Number(form.costPerUnit) || 0,
+      supplier: form.supplier || undefined,
+      branchId: effectiveBranchId || undefined,
+      branch: effectiveBranchId || undefined,
       ...(form.expiryDate ? { expiryDate: form.expiryDate } : {}),
     };
 
@@ -341,7 +365,7 @@ const IngredientsPage: React.FC = () => {
         accessorKey: 'name',
         cell: (ing) => {
           const percent = getStockLevelPercent(ing);
-          const color = getStockLevelColor(ing.stockStatus);
+          const color = getStockLevelColor(ing.stockStatus || 'in_stock');
           return (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -401,7 +425,7 @@ const IngredientsPage: React.FC = () => {
           <div className="space-y-0.5">
             <span className="text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1">
               <Truck className="h-3 w-3 text-slate-400 shrink-0" />
-              {ing.supplier?.name || '—'}
+              {getSupplierName(ing.supplier) || '—'}
             </span>
           </div>
         ),
@@ -440,7 +464,7 @@ const IngredientsPage: React.FC = () => {
         id: 'stockStatus',
         header: 'Status',
         sortable: true,
-        cell: (ing) => getStatusBadge(ing.stockStatus, ing.expiryDate),
+        cell: (ing) => getStatusBadge(ing.stockStatus || 'in_stock', ing.expiryDate),
       },
       {
         id: 'actions',
@@ -597,7 +621,7 @@ const IngredientsPage: React.FC = () => {
         id: 'supplier',
         label: 'By Supplier',
         icon: <Truck className="h-4 w-4" />,
-        accessor: (ing) => ing.supplier?.name?.toUpperCase() || 'NO SUPPLIER',
+        accessor: (ing) => getSupplierName(ing.supplier).toUpperCase() || 'NO SUPPLIER',
       },
       {
         id: 'stockStatus',
@@ -757,7 +781,7 @@ const IngredientsPage: React.FC = () => {
             MinStock: i.minStock,
             MaxStock: i.maxStock,
             CostPerUnit: i.costPerUnit,
-            Supplier: i.supplier?.name || '',
+            Supplier: getSupplierName(i.supplier),
             ExpiryDate: i.expiryDate || '',
             Status: i.stockStatus,
             InventoryValue: (i.currentStock * i.costPerUnit).toFixed(2),
@@ -792,16 +816,16 @@ const IngredientsPage: React.FC = () => {
     onSelect: (checked: boolean) => void
   ) => {
     const percent = getStockLevelPercent(ing);
-    const color = getStockLevelColor(ing.stockStatus);
+    const color = getStockLevelColor(ing.stockStatus || 'in_stock');
     const expired = isExpired(ing.expiryDate);
     const expiring = isExpiringSoon(ing.expiryDate, 14);
 
     const borderColor =
       expired
         ? 'border-rose-400 dark:border-rose-500 ring-2 ring-rose-400/20'
-        : ing.stockStatus === 'out_of_stock'
+        : (ing.stockStatus || 'in_stock') === 'out_of_stock'
         ? 'border-rose-300 dark:border-rose-700'
-        : ing.stockStatus === 'low_stock'
+        : (ing.stockStatus || 'in_stock') === 'low_stock'
         ? 'border-amber-300 dark:border-amber-700'
         : expiring
         ? 'border-amber-300 dark:border-amber-700'
@@ -901,7 +925,7 @@ const IngredientsPage: React.FC = () => {
                 <Truck className="h-3 w-3 text-slate-400" /> Supplier
               </span>
               <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
-                {ing.supplier.name}
+                {getSupplierName(ing.supplier)}
               </span>
             </div>
           )}
@@ -927,7 +951,7 @@ const IngredientsPage: React.FC = () => {
 
         {/* Footer: Status + Actions */}
         <div className="flex items-center justify-between">
-          {getStatusBadge(ing.stockStatus, ing.expiryDate)}
+          {getStatusBadge(ing.stockStatus || 'in_stock', ing.expiryDate)}
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             <Button
               variant="ghost"
@@ -969,7 +993,7 @@ const IngredientsPage: React.FC = () => {
     onSelect: (checked: boolean) => void
   ) => {
     const percent = getStockLevelPercent(ing);
-    const color = getStockLevelColor(ing.stockStatus);
+    const color = getStockLevelColor(ing.stockStatus || 'in_stock');
     const expired = isExpired(ing.expiryDate);
     const expiring = isExpiringSoon(ing.expiryDate, 14);
 
@@ -982,9 +1006,9 @@ const IngredientsPage: React.FC = () => {
               className={`h-9 w-9 rounded-lg flex items-center justify-center ${
                 expired
                   ? 'bg-rose-500/10 text-rose-600'
-                  : ing.stockStatus === 'in_stock'
+                  : (ing.stockStatus || 'in_stock') === 'in_stock'
                   ? 'bg-emerald-500/10 text-emerald-600'
-                  : ing.stockStatus === 'low_stock'
+                  : (ing.stockStatus || 'in_stock') === 'low_stock'
                   ? 'bg-amber-500/10 text-amber-600'
                   : 'bg-rose-500/10 text-rose-600'
               }`}
@@ -1000,7 +1024,7 @@ const IngredientsPage: React.FC = () => {
               <span className="text-[10px] px-1.5 py-0 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 capitalize shrink-0">
                 {ing.category}
               </span>
-              {getStatusBadge(ing.stockStatus, ing.expiryDate)}
+              {getStatusBadge(ing.stockStatus || 'in_stock', ing.expiryDate)}
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
               <span className="font-mono">
@@ -1012,7 +1036,7 @@ const IngredientsPage: React.FC = () => {
               {ing.supplier && (
                 <span className="flex items-center gap-1 truncate">
                   <Truck className="h-2.5 w-2.5 shrink-0" />
-                  <span className="truncate">{ing.supplier.name}</span>
+                  <span className="truncate">{getSupplierName(ing.supplier)}</span>
                 </span>
               )}
               {ing.expiryDate && (expired || expiring) && (
@@ -1088,6 +1112,33 @@ const IngredientsPage: React.FC = () => {
       />
 
       <div className="px-4 sm:px-8 space-y-6 max-w-7xl mx-auto">
+        {branches.length > 1 && (
+          <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl px-4 py-2.5 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Branch Filter:</span>
+              <span className="text-[11px] text-slate-500">View stock isolated to this location</span>
+            </div>
+            <div className="w-[220px]">
+              <Select
+                value={effectiveBranchId}
+                onValueChange={(val) => setSelectedBranchId(val)}
+              >
+                <SelectTrigger className="h-8 text-xs rounded-lg">
+                  <SelectValue placeholder="Select Branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b._id} value={b._id} className="text-xs">
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Standard DataCards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <DataCard
