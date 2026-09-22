@@ -63,7 +63,7 @@ const MenuItemPage: React.FC<MenuItemPageProps> = ({ itemId, onEdit }) => {
   const deleteMutation = useDeleteMenuItemMutation();
   const toggleAvailabilityMutation = useToggleMenuItemAvailabilityMutation();
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   // Helper to extract image source matching MenuItemsPage table
   const getImageSrc = (data: any) => {

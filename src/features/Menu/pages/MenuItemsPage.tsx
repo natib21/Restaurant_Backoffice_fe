@@ -145,7 +145,7 @@ const MenuItemsPage = () => {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const getImageSrc = (item: any) => {
     const path = item?.imageUrl || item?.imageData?.url || null;
