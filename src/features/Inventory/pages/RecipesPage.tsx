@@ -376,7 +376,6 @@ const RecipesPage: React.FC = () => {
         const ingName = ing ? ing.name : it.ingredient;
         return {
           ingredientName: ingName, // ⚠️ STRING, required by backend
-          ingredient: it.ingredient, // Keep for compatibility
           quantity: Number(it.quantity),
           unit: it.unit || (ing?.unit as UnitType) || 'kg',
         };
@@ -384,7 +383,6 @@ const RecipesPage: React.FC = () => {
     if (items.length === 0) return null;
     return {
       menuItem: formMenuItem,
-      menuItemId: formMenuItem,
       name: formName.trim(),
       yield: Number(formYield),
       items,

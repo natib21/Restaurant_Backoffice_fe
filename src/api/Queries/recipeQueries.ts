@@ -3,8 +3,7 @@ import { api } from '@/lib/api';
 
 // Recipe Types
 export interface RecipeItem {
-  ingredientName?: string; // ⚠️ STRING, required by backend
-  ingredient?: string; // Ingredient _id for backward compatibility
+  ingredientName: string; // STRING, required by backend - ingredient name
   quantity: number;
   unit: string;
 }
@@ -22,8 +21,7 @@ export interface RecipeItemDetail {
 }
 
 export interface RecipeCreateRequest {
-  menuItem?: string; // Menu _id
-  menuItemId?: string; // Menu _id (as per guide)
+  menuItem: string; // Menu _id
   name: string;
   yield: number; // Servings this recipe produces
   items: RecipeItem[];
