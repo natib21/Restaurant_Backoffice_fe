@@ -183,7 +183,7 @@ const orderKeys = {
 const fetchActiveOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
-  const { data } = await api.get('/v1/order/active', { params });
+  const { data } = await api.get('/v1/orders/active', { params });
   return parseOrdersResponse(data);
 };
 
@@ -191,7 +191,7 @@ const fetchAllOrdersResponse = async (
   params?: Record<string, any>
 ): Promise<OrdersResponse> => {
   try {
-    const { data } = await api.get('/v1/order', { params });
+    const { data } = await api.get('/v1/orders', { params });
     const parsed = parseOrdersResponse(data);
     if (parsed.orders && parsed.orders.length > 0) {
       return parsed;
@@ -203,8 +203,8 @@ const fetchAllOrdersResponse = async (
   // Fallback / Aggregation: Query both active and completed orders to guarantee all statuses are fetched
   try {
     const [activeRes, completedRes] = await Promise.allSettled([
-      api.get('/v1/order/active', { params }),
-      api.get('/v1/order/completed', { params }),
+      api.get('/v1/orders/active', { params }),
+      api.get('/v1/orders/completed', { params }),
     ]);
 
     const activeOrders: Order[] =
@@ -231,7 +231,7 @@ const fetchAllOrdersResponse = async (
       count: allOrders.length,
     };
   } catch (fallbackError) {
-    const { data } = await api.get('/v1/order/active', { params });
+    const { data } = await api.get('/v1/orders/active', { params });
     return parseOrdersResponse(data);
   }
 };
@@ -267,7 +267,7 @@ const fetchStatusOrders = async (
   status: string,
   params?: Record<string, any>
 ): Promise<Order[]> => {
-  const { data } = await api.get(`/v1/order/${status}`, { params });
+  const { data } = await api.get(`/v1/orders/${status}`, { params });
   return data.data?.orders ?? data.orders ?? [];
 };
 
@@ -277,7 +277,7 @@ const fetchCompletedOrders = async (
   orders: Order[];
   summary: OrdersSummary;
 }> => {
-  const { data } = await api.get('/v1/order/completed', { params });
+  const { data } = await api.get('/v1/orders/completed', { params });
   return {
     orders: data.data?.orders ?? data.orders ?? [],
     summary: data.summary ?? data.data?.summary ?? {
@@ -291,12 +291,12 @@ const fetchCompletedOrders = async (
 
 const fetchOrderByNumber = async (orderNumber: string): Promise<Order> => {
   const cleanNumber = orderNumber.replace(/^#/, '');
-  const { data } = await api.get(`/v1/order/number/${cleanNumber}`);
+  const { data } = await api.get(`/v1/orders/number/${cleanNumber}`);
   return parseOrder(data);
 };
 
 const fetchOrderById = async (orderId: string): Promise<Order> => {
-  const { data } = await api.get(`/v1/order/${orderId}`);
+  const { data } = await api.get(`/v1/orders/${orderId}`);
   return parseOrder(data);
 };
 
@@ -313,7 +313,7 @@ const updateOrderStatus = async ({
   assignedWaiter?: string;
   assignedKitchenStaff?: string;
 }): Promise<Order> => {
-  const { data } = await api.patch(`/v1/order/${orderId}/status`, {
+  const { data } = await api.patch(`/v1/orders/${orderId}/status`, {
     status,
     reason,
     assignedWaiter,
@@ -329,7 +329,7 @@ const cancelOrder = async ({
   orderId: string;
   reason?: string;
 }): Promise<Order> => {
-  const { data } = await api.patch(`/v1/order/${orderId}/cancel`, { reason });
+  const { data } = await api.patch(`/v1/orders/${orderId}/cancel`, { reason });
   return parseOrder(data);
 };
 
@@ -340,7 +340,7 @@ const markOrderAsPaid = async ({
   orderId: string;
   data: FormData;
 }): Promise<Order> => {
-  const response = await api.post(`/v1/order/${orderId}/pay`, data);
+  const response = await api.post(`/v1/orders/${orderId}/pay`, data);
   return parseOrder(response.data);
 };
 
@@ -370,9 +370,9 @@ const createStaffOrder = async (
     const { data } = await api.post('/v1/orders/staff-place-order', formattedPayload);
     return parseOrder(data.data || data);
   } catch (err: any) {
-    // If staff-place-order returns 404, fall back to legacy /v1/order/staff
+    // If staff-place-order returns 404, fall back to legacy /v1/orders/staff
     if (err?.response?.status === 404) {
-      const { data } = await api.post('/v1/order/staff', payload);
+      const { data } = await api.post('/v1/orders/staff', payload);
       return parseOrder(data);
     }
     throw err;
@@ -416,12 +416,12 @@ const updateKitchenTicketStatus = async ({
 // -------- CUSTOMER --------
 
 const fetchMyActiveOrder = async (): Promise<Order | null> => {
-  const { data } = await api.get('/v1/order/my-active');
+  const { data } = await api.get('/v1/orders/my-active');
   return data.data?.order ?? null;
 };
 
 const fetchMyOrderHistory = async (): Promise<Order[]> => {
-  const { data } = await api.get('/v1/order/my-history');
+  const { data } = await api.get('/v1/orders/my-history');
   return data.data?.orders ?? [];
 };
 
@@ -675,7 +675,7 @@ export const useAddItemsToOrderMutation = () => {
         quantity: i.quantity,
         notes: i.notes || i.specialInstructions || '',
       }));
-      const { data } = await api.patch(`/v1/order/${orderId}/add-items`, { items: formattedItems });
+      const { data } = await api.patch(`/v1/orders/${orderId}/add-items`, { items: formattedItems });
       return data.data?.order || data.order;
     },
     onSuccess: (order) => {
@@ -758,7 +758,7 @@ export const useUpdateOrderItemStatusMutation = () => {
   >({
     mutationFn: async ({ orderId, itemId, status }) => {
       const { data } = await api.patch(
-        `/v1/order/${orderId}/items/${itemId}/status`,
+        `/v1/orders/${orderId}/items/${itemId}/status`,
         { status }
       );
       return data.data || data;
@@ -794,7 +794,7 @@ export const useBulkServeReadyItemsMutation = () => {
   >({
     mutationFn: async ({ orderId }) => {
       const { data } = await api.post(
-        `/v1/order/${orderId}/items/serve-ready`
+        `/v1/orders/${orderId}/items/serve-ready`
       );
       return data.data || data;
     },
@@ -842,7 +842,7 @@ export const useVoidOrderItemMutation = () => {
         // Fallback to PATCH /v1/order/:orderId/items/:itemId/void if 404
         if (err?.response?.status === 404) {
           const { data } = await api.patch(
-            `/v1/order/${orderId}/items/${itemId}/void`,
+            `/v1/orders/${orderId}/items/${itemId}/void`,
             { reason, createReplacement: !!createReplacement }
           );
           return data.data || data;
