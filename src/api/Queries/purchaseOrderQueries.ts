@@ -85,16 +85,8 @@ export const useGetPurchaseOrdersList = (params?: {
   return useQuery<PurchaseOrderListResponse>({
     queryKey: ['purchaseOrdersList', params],
     queryFn: async () => {
-      try {
-        const response = await api.get('/v1/inventory/purchase-orders', { params });
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get('/v1/purchase-orders', { params });
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get('/v1/purchase-orders', { params });
+      return response.data;
     },
   });
 };
@@ -105,16 +97,8 @@ export const useGetPurchaseOrderDetails = (poId?: string) => {
     queryKey: ['purchaseOrderDetails', poId],
     queryFn: async () => {
       if (!poId) throw new Error('Purchase Order ID is required');
-      try {
-        const response = await api.get(`/v1/inventory/purchase-orders/${poId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get(`/v1/purchase-orders/${poId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get(`/v1/purchase-orders/${poId}`);
+      return response.data;
     },
     enabled: !!poId,
   });
@@ -126,16 +110,8 @@ export const useCreatePurchaseOrder = () => {
 
   return useMutation({
     mutationFn: async (data: PurchaseOrderCreateRequest) => {
-      try {
-        const response = await api.post('/v1/inventory/purchase-orders', data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.post('/v1/purchase-orders', data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.post('/v1/purchase-orders', data);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrdersList'] });
@@ -149,16 +125,8 @@ export const useUpdatePurchaseOrder = () => {
 
   return useMutation({
     mutationFn: async ({ poId, data }: { poId: string; data: Partial<PurchaseOrderCreateRequest> }) => {
-      try {
-        const response = await api.patch(`/v1/inventory/purchase-orders/${poId}`, data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.patch(`/v1/purchase-orders/${poId}`, data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.patch(`/v1/purchase-orders/${poId}`, data);
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', variables.poId] });
@@ -173,16 +141,8 @@ export const useDeletePurchaseOrder = () => {
 
   return useMutation({
     mutationFn: async (poId: string) => {
-      try {
-        const response = await api.delete(`/v1/inventory/purchase-orders/${poId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.delete(`/v1/purchase-orders/${poId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.delete(`/v1/purchase-orders/${poId}`);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrdersList'] });
@@ -196,16 +156,8 @@ export const useReceiveGoodsForPO = () => {
 
   return useMutation({
     mutationFn: async ({ poId, data }: { poId: string; data?: ReceiveGoodsRequest }) => {
-      try {
-        const response = await api.post(`/v1/inventory/purchase-orders/${poId}/receive`, data || {});
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.post(`/v1/purchase-orders/${poId}/receive`, data || {});
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.post(`/v1/purchase-orders/${poId}/receive`, data || {});
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrdersList'] });

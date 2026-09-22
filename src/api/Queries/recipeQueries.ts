@@ -61,16 +61,8 @@ export const useGetRecipesList = (merchantId?: string) => {
     queryKey: ['recipesList', merchantId],
     queryFn: async () => {
       const params = merchantId ? { merchantId } : undefined;
-      try {
-        const response = await api.get('/v1/inventory/recipes', { params });
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get('/v1/recipes', { params });
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get('/v1/recipes', { params });
+      return response.data;
     },
   });
 };
@@ -81,16 +73,8 @@ export const useGetRecipeDetails = (recipeId?: string) => {
     queryKey: ['recipeDetails', recipeId],
     queryFn: async () => {
       if (!recipeId) throw new Error('Recipe ID is required');
-      try {
-        const response = await api.get(`/v1/inventory/recipes/${recipeId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.get(`/v1/recipes/${recipeId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.get(`/v1/recipes/${recipeId}`);
+      return response.data;
     },
     enabled: !!recipeId,
   });
@@ -102,16 +86,8 @@ export const useCreateRecipe = () => {
 
   return useMutation({
     mutationFn: async (data: RecipeCreateRequest) => {
-      try {
-        const response = await api.post('/v1/inventory/recipes', data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.post('/v1/recipes', data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.post('/v1/recipes', data);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipesList'] });
@@ -125,16 +101,8 @@ export const useUpdateRecipe = () => {
 
   return useMutation({
     mutationFn: async ({ recipeId, data }: { recipeId: string; data: Partial<RecipeCreateRequest> }) => {
-      try {
-        const response = await api.put(`/v1/inventory/recipes/${recipeId}`, data);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.patch(`/v1/recipes/${recipeId}`, data);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.patch(`/v1/recipes/${recipeId}`, data);
+      return response.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['recipeDetails', variables.recipeId] });
@@ -149,16 +117,8 @@ export const useDeleteRecipe = () => {
 
   return useMutation({
     mutationFn: async (recipeId: string) => {
-      try {
-        const response = await api.delete(`/v1/inventory/recipes/${recipeId}`);
-        return response.data;
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          const fallback = await api.delete(`/v1/recipes/${recipeId}`);
-          return fallback.data;
-        }
-        throw err;
-      }
+      const response = await api.delete(`/v1/recipes/${recipeId}`);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipesList'] });
